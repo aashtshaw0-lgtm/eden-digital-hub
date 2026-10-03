@@ -166,3 +166,7 @@ export {
   NavigationMenuViewport,
   navigationMenuTriggerStyle,
 }
+
+export function getNavigationMenuLabel() {
+  return "navigation-menu"
+}

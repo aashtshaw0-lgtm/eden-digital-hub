@@ -25,10 +25,15 @@ export function AdminInbox() {
   }, [messages?.length, activeId]);
 
   useEffect(() => {
-    if (!activeId && sessions && sessions.length > 0) {
+    if (!sessions || sessions.length === 0 || activeId) return;
+    let cancelled = false;
+    (async () => {
       const firstActive = sessions.find((s) => s.status === "active") ?? sessions[0];
-      setActiveId(firstActive._id);
-    }
+      if (!cancelled) setActiveId(firstActive._id);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [sessions, activeId]);
 
   const sorted = [...(sessions ?? [])].sort(

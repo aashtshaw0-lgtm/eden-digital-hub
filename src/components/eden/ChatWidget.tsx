@@ -175,10 +175,19 @@ function ManagerChat({ onBack }: { onBack: () => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isAuthenticated && session === null && !starting) {
+    if (!isAuthenticated || session !== null || starting) return;
+    let cancelled = false;
+    (async () => {
       setStarting(true);
-      startSession().finally(() => setStarting(false));
-    }
+      try {
+        if (!cancelled) await startSession();
+      } finally {
+        if (!cancelled) setStarting(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated, session, starting, startSession]);
 
   const messages = useQuery(

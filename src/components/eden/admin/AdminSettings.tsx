@@ -26,10 +26,16 @@ export function AdminSettings() {
   const qrRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setPrimaryColor(settings.primaryColor);
-    setBackgroundColor(settings.backgroundColor);
-    setUpiId(settings.upiId);
-    setInstagram(settings.socialLinks.instagram);
+    if (!settings) return;
+    let cancelled = false;
+    (async () => {
+      if (!cancelled) {
+        setPrimaryColor(settings.primaryColor);
+        setBackgroundColor(settings.backgroundColor);
+        setUpiId(settings.upiId);
+        setInstagram(settings.socialLinks.instagram);
+      }
+    })();
     setTwitter(settings.socialLinks.twitter);
     setBehance(settings.socialLinks.behance);
     setLinkedin(settings.socialLinks.linkedin);

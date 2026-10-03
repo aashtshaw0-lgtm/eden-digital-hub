@@ -43,3 +43,7 @@ function Toggle({
 }
 
 export { Toggle, toggleVariants }
+
+export function getToggleLabel() {
+  return "toggle"
+}

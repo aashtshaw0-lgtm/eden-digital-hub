@@ -12,7 +12,7 @@ import { useMutation } from "convex/react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
-import type { Doc, Id } from "@/convex/_generated/dataModel";
+import type { Doc } from "@/convex/_generated/dataModel";
 
 type Service = Doc<"services"> & { tiers: Doc<"serviceTiers">[] };
 type Tier = Doc<"serviceTiers">;
@@ -310,13 +310,13 @@ function DesignForm({ tier, onComplete }: { tier: Tier; onComplete: (r: Record<s
           <Field label="Primary brand colour">
             <div className="flex items-center gap-2">
               <input type="color" {...register("brandPrimary")} className="h-11 w-14 cursor-pointer rounded-xl border border-border bg-transparent p-1" />
-              <span className="text-xs text-muted-foreground">{watch("brandPrimary")}</span>
+              <span className="text-xs text-muted-foreground">{form.watch("brandPrimary")}</span>
             </div>
           </Field>
           <Field label="Secondary colour">
             <div className="flex items-center gap-2">
               <input type="color" {...register("brandSecondary")} className="h-11 w-14 cursor-pointer rounded-xl border border-border bg-transparent p-1" />
-              <span className="text-xs text-muted-foreground">{watch("brandSecondary")}</span>
+              <span className="text-xs text-muted-foreground">{form.watch("brandSecondary")}</span>
             </div>
           </Field>
         </div>
@@ -425,7 +425,7 @@ function ManagementForm({ tier, onComplete }: { tier: Tier; onComplete: (r: Reco
     defaultValues: { platforms: [], cadence: undefined, notes: "", clientName: "", clientEmail: "", clientWhatsapp: "" } as unknown as ManagementValues,
   });
   const { register, watch, setValue, formState, handleSubmit } = form;
-  const platforms = watch("platforms") ?? [];
+  const platforms = form.watch("platforms") ?? [];
 
   const togglePlatform = (p: string) => {
     const next = platforms.includes(p) ? platforms.filter((x) => x !== p) : [...platforms, p];

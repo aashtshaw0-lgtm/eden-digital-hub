@@ -51,5 +51,5 @@ export function useSeo(opts: {
     return () => {
       document.getElementById(id)?.remove();
     };
-  }, [JSON.stringify(jsonLd)]);
+  }, [jsonLd]);
 }

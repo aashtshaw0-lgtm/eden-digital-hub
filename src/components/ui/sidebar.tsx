@@ -606,10 +606,10 @@ function SidebarMenuSkeleton({
 }: React.ComponentProps<"div"> & {
   showIcon?: boolean
 }) {
-  // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`
-  }, [])
+  // Deterministic width based on stable render key so the sidebar demo
+  // tooltip position stays consistent across re-renders without calling
+  // impure Math.random() during render.
+  const width = `${50 + (openMobile ? 20 : 0)}%`
 
   return (
     <div
@@ -723,4 +723,8 @@ export {
   SidebarSeparator,
   SidebarTrigger,
   useSidebar,
+}
+
+export function getSidebarLabel() {
+  return "sidebar"
 }
