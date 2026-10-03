@@ -165,7 +165,3 @@ export {
   FormMessage,
   FormField,
 }
-
-export function getFormLabel() {
-  return "form"
-}

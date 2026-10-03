@@ -81,7 +81,3 @@ export {
   ButtonGroupText,
   buttonGroupVariants,
 }
-
-function getButtonGroupLabel() {
-  return "button-group"
-}

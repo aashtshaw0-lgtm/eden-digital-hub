@@ -25,21 +25,22 @@ export function AdminSettings() {
   const [qrBusy, setQrBusy] = useState(false);
   const qrRef = useRef<HTMLInputElement>(null);
 
+  // Sync the editable form fields whenever the CMS settings row changes
+  // (e.g. after a save, or when another admin tab edits it).
   useEffect(() => {
-    if (!settings) return;
-    let cancelled = false;
-    (async () => {
-      if (!cancelled) {
-        setPrimaryColor(settings.primaryColor);
-        setBackgroundColor(settings.backgroundColor);
-        setUpiId(settings.upiId);
-        setInstagram(settings.socialLinks.instagram);
-      }
-    })();
+    setPrimaryColor(settings.primaryColor);
+    setBackgroundColor(settings.backgroundColor);
+    setUpiId(settings.upiId);
+    setInstagram(settings.socialLinks.instagram);
     setTwitter(settings.socialLinks.twitter);
     setBehance(settings.socialLinks.behance);
     setLinkedin(settings.socialLinks.linkedin);
-  }, [settings]);
+  }, [
+    settings.primaryColor,
+    settings.backgroundColor,
+    settings.upiId,
+    settings.socialLinks,
+  ]);
 
   const save = async () => {
     setSaving(true);

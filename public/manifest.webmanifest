@@ -1,11 +1,11 @@
 {
-  "name": "freebuff.com application",
-  "short_name": "freebuff.com",
-  "description": "freebuff.com application",
+  "name": "Eden - Digital Design & Management",
+  "short_name": "Eden",
+  "description": "Logos, posters, commercial designs, thumbnails and event banners, plus event planning and social media management.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "background_color": "#f6f2ea",
+  "theme_color": "#f6f2ea",
   "icons": [
     {
       "src": "/logo.svg",

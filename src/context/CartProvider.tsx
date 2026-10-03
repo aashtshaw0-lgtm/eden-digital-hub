@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 export interface CartItem {
   serviceId: string;
@@ -13,6 +21,7 @@ export interface CartItem {
 interface CartContextValue {
   items: CartItem[];
   total: number;
+  /** Timestamp of the most recent addItem() call; 0 when nothing added yet. */
   lastAddedAt: number;
   addItem: (item: CartItem) => void;
   removeItem: (index: number) => void;
@@ -22,20 +31,21 @@ interface CartContextValue {
 const CartContext = createContext<CartContextValue | null>(null);
 const STORAGE_KEY = "eden.cart.v1";
 
-const initialItems = (): CartItem[] => {
+function readStoredItems(): CartItem[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? (JSON.parse(raw) as CartItem[]) : [];
   } catch {
     return [];
   }
-};
+}
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [, forceUpdate] = useState(0);
-  const [items, setItems] = useState<CartItem[]>(initialItems);
-  const [, setState] = useState(0);
+  const [items, setItems] = useState<CartItem[]>(readStoredItems);
+  const [lastAddedAt, setLastAddedAt] = useState(0);
 
+  // Persist the cart. Writing to localStorage is an external-system sync,
+  // so it belongs in an effect (no state is set here).
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
@@ -45,42 +55,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items]);
 
   const addItem = useCallback((item: CartItem) => {
-    setItems((prev) => {
-      const next = [...prev, item];
-      forceUpdate((n) => n + 1);
-      return next;
-    });
-    setState((n) => n + 1);
+    setItems((prev) => [...prev, item]);
+    setLastAddedAt(Date.now());
   }, []);
 
   const removeItem = useCallback((index: number) => {
-    setItems((prev) => {
-      const next = prev.filter((_, i) => i !== index);
-      forceUpdate((n) => n + 1);
-      return next;
-    });
-    setState((n) => n + 1);
+    setItems((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const clear = useCallback(() => {
-    setItems((prev) => {
-      const next = [];
-      forceUpdate((n) => n + 1);
-      return next;
-    });
-    setState((n) => n + 1);
-  }, []);
+  const clear = useCallback(() => setItems([]), []);
 
   const value = useMemo<CartContextValue>(
     () => ({
       items,
       total: items.reduce((sum, i) => sum + i.price, 0),
-      lastAddedAt: Date.now(),
+      lastAddedAt,
       addItem,
       removeItem,
       clear,
     }),
-    [items, addItem, removeItem, clear],
+    [items, lastAddedAt, addItem, removeItem, clear],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

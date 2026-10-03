@@ -30,16 +30,20 @@ const SettingsContext = createContext<EdenSettings>(DEFAULTS);
  * brand colors as CSS variables (--primary / --background) so the whole site
  * re-themes live, exactly like the admin panel intends.
  */
-export function SettingsProvider({ children }: { children: ReactNode }) {  const settings = useQuery(api.settings.get);  useEffect(() => {
-    if (!settings) return;
+export function SettingsProvider({ children }: { children: ReactNode }) {
+  const settings = useQuery(api.settings.get);
+
+  const primaryColor = settings?.primaryColor;
+  const backgroundColor = settings?.backgroundColor;
+
+  useEffect(() => {
+    if (!primaryColor || !backgroundColor) return;
     const root = document.documentElement;
-    root.style.setProperty("--primary", settings.primaryColor);
-    root.style.setProperty("--ring", settings.primaryColor);
-    root.style.setProperty("--primary-foreground", readableOn(settings.primaryColor));
-    root.style.setProperty("--background", settings.backgroundColor);
-  }, [settings?.primaryColor, settings?.backgroundColor]);
-
-
+    root.style.setProperty("--primary", primaryColor);
+    root.style.setProperty("--ring", primaryColor);
+    root.style.setProperty("--primary-foreground", readableOn(primaryColor));
+    root.style.setProperty("--background", backgroundColor);
+  }, [primaryColor, backgroundColor]);
 
   const value: EdenSettings = settings
     ? {

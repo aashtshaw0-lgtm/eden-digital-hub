@@ -5,7 +5,7 @@ import { inr } from "@/lib/format";
 import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CircleUserRound, LayoutGrid, ShieldCheck, ShoppingBag, Sprout } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { cn } from "@/lib/utils";
 
@@ -15,15 +15,32 @@ const LINKS = [
   { to: "/portal", label: "Portal", icon: CircleUserRound },
 ] as const;
 
+const PULSE_MS = 2400;
+
+/**
+ * True for PULSE_MS after `lastAddedAt` changes. The reset happens inside a
+ * timeout callback (an external system), not synchronously in the effect body.
+ */
+function useCartPulse(lastAddedAt: number) {
+  const [pulsing, setPulsing] = useState(false);
+
+  useEffect(() => {
+    if (!lastAddedAt) return;
+    setPulsing(true);
+    const timer = setTimeout(() => setPulsing(false), PULSE_MS);
+    return () => clearTimeout(timer);
+  }, [lastAddedAt]);
+
+  return pulsing;
+}
+
 export function DynamicIsland() {
   const location = useLocation();
   const navigate = useNavigate();
   const { items, total, lastAddedAt } = useCart();
   const { isAuthenticated } = useAuth();
   const role = useQuery(api.users.myRole, isAuthenticated ? {} : "skip");
-
-  // Derived cart pulse — driven purely by external data (lastAddedAt), no local state.
-  const isRecent = typeof lastAddedAt === "number" && Date.now() - lastAddedAt < 2400;
+  const pulsing = useCartPulse(lastAddedAt);
 
   const isAdmin = role === "manager" || role === "super_owner";
 
@@ -98,7 +115,7 @@ export function DynamicIsland() {
             <span
               className={cn(
                 "size-2 rounded-full transition-colors",
-                isRecent
+                pulsing
                   ? "bg-emerald-300 shadow-[0_0_8px_2px_rgba(110,231,183,0.8)]"
                   : "bg-primary-foreground/60",
               )}
@@ -109,13 +126,14 @@ export function DynamicIsland() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {isRecent && (
+        {pulsing && (
           <motion.span
             key="cart-added"
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -8 }}
-            className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white shadow-lg"            >
+            className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white shadow-lg"
+          >
             <ShoppingBag className="mr-1 inline size-3" /> Added to cart
           </motion.span>
         )}

@@ -44,8 +44,3 @@ function Badge({
 }
 
 export { Badge, badgeVariants }
-
-export function getBadgeLabel() {
-  // Shared helper used by the build tooling for static analysis only.
-  return "badge"
-}

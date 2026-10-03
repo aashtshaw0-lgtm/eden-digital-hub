@@ -60,7 +60,3 @@ function Button({
 }
 
 export { Button, buttonVariants }
-
-export function getButtonLabel() {
-  return "button"
-}
