@@ -47,6 +47,17 @@ export const mySession = query({
   },
 });
 
+/**
+ * Whether a user id belongs to the studio side of the conversation.
+ *
+ * Role, not session ownership: a manager replying inside their own support
+ * session is still the studio, and keying off ownership mislabels those
+ * replies as client messages.
+ */
+function isStudioRole(role: string | undefined): boolean {
+  return role === "manager" || role === "super_owner";
+}
+
 /** Live message thread — readable by the session owner or an admin. */
 export const getMessages = query({
   args: { sessionId: v.id("chatSessions") },
@@ -57,15 +68,37 @@ export const getMessages = query({
     if (!user) throw new Error("Unauthorized to read this conversation.");
     // RBAC: the session owner, or a manager / super owner.
     const r = user.role ?? "customer";
-    const isAdmin = r === "manager" || r === "super_owner";
+    const isAdmin = isStudioRole(r);
     if (session.clientId !== user._id && !isAdmin) {
       throw new Error("Unauthorized to read this conversation.");
     }
-    return await ctx.db
+    const rows = await ctx.db
       .query("messages")
       .withIndex("by_session_created", (q) => q.eq("sessionId", sessionId))
       .order("asc")
       .collect();
+
+    // The side is re-derived from each sender's actual role on read, so any
+    // message stored under the old ownership-based rule corrects itself
+    // without a migration.
+    const roleCache = new Map<string, boolean>();
+    return await Promise.all(
+      rows.map(async (message) => {
+        let studio = false;
+        if (message.senderId) {
+          const key = message.senderId;
+          const cached = roleCache.get(key);
+          if (cached === undefined) {
+            const sender = await ctx.db.get(message.senderId);
+            studio = isStudioRole(sender?.role);
+            roleCache.set(key, studio);
+          } else {
+            studio = cached;
+          }
+        }
+        return { ...message, senderRole: studio ? "manager" : "client" };
+      }),
+    );
   },
 });
 
@@ -77,7 +110,7 @@ export const sendMessage = mutation({
     const session = await ctx.db.get(sessionId);
     if (!user || !session) throw new Error("Unauthorized.");
     const r = user.role ?? "customer";
-    const isAdmin = r === "manager" || r === "super_owner";
+    const isAdmin = isStudioRole(r);
     if (session.clientId !== user._id && !isAdmin) {
       throw new Error("Unauthorized to post in this conversation.");
     }
@@ -89,7 +122,9 @@ export const sendMessage = mutation({
       sessionId,
       senderId: user._id,
       senderName: user.name ?? user.email ?? "Guest",
-      senderRole: session.clientId === user._id ? "client" : "manager",
+      // Role decides the side of the thread, so a manager replying in their own
+      // session does not render as a client message.
+      senderRole: isAdmin ? "manager" : "client",
       content: trimmed.slice(0, 2000),
       createdAt: Date.now(),
     });

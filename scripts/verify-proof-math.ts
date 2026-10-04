@@ -123,5 +123,19 @@ check("flat 5,000 capped at the order total", discountFor({ kind: "flat", value:
 check("never negative", discountFor({ kind: "flat", value: 100 }, 0), 0);
 check("percent of zero is zero", discountFor({ kind: "percent", value: 50 }, 0), 0);
 
+console.log("\n--- chat: which side of the thread a message belongs to ---");
+const chat = readFileSync("src/convex/chat.ts", "utf8");
+const studioRoleSrc = slice(chat, "function isStudioRole(", "/** Live message thread");
+const studioRoleFn = new Function(`${compile(studioRoleSrc)}\nreturn isStudioRole;`)();
+const isStudioRole = studioRoleFn as (role: string | undefined) => boolean;
+
+// Regression: the side used to be derived from session ownership, so a manager
+// replying inside their own session was labelled "client" and both messages
+// rendered in the same column.
+check("manager -> studio side", isStudioRole("manager"), true);
+check("super_owner -> studio side", isStudioRole("super_owner"), true);
+check("customer -> client side", isStudioRole("customer"), false);
+check("no role yet -> client side", isStudioRole(undefined), false);
+
 console.log(`\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

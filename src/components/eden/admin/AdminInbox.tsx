@@ -1,4 +1,5 @@
 import { api } from "@/convex/_generated/api";
+import { MessageBubble } from "@/components/eden/MessageBubble";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
 import { Check, CheckCheck } from "lucide-react";
@@ -118,23 +119,18 @@ export function AdminInbox() {
               </button>
             </div>
 
-            <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
-              {messages?.map((m) => (
-                <div
+            <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+              {messages?.map((m, i) => (
+                <MessageBubble
                   key={m._id}
-                  className={cn("flex", m.senderRole === "manager" ? "justify-end" : "justify-start")}
-                >
-                  <div
-                    className={cn(
-                      "max-w-[80%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm",
-                      m.senderRole === "manager"
-                        ? "rounded-br-md bg-primary text-primary-foreground"
-                        : "clay-sm rounded-bl-md",
-                    )}
-                  >
-                    {m.content}
-                  </div>
-                </div>
+                  // Mirror image of the client's thread: the manager's own
+                  // replies sit on the right, the client's on the left.
+                  side={m.senderRole === "manager" ? "studio" : "client"}
+                  text={m.content}
+                  senderName={m.senderRole === "manager" ? "Eden studio" : undefined}
+                  createdAt={m.createdAt}
+                  index={i}
+                />
               ))}
               {messages?.length === 0 && (
                 <p className="py-8 text-center text-xs text-muted-foreground">

@@ -1,27 +1,22 @@
-import { cn } from "@/lib/utils";
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "framer-motion";
 import { useRef } from "react";
 
 /**
- * A gallery tile that tilts in 3D toward the pointer.
+ * A gallery tile that behaves like a physical print under glass.
  *
- * Every value runs through a spring on a motion value rather than React state,
- * so pointer movement never triggers a render — the tilt stays at 60fps even
- * with a full grid of tiles on screen. On touch devices (no hover) the spring
- * rests at 0 and the card simply lifts on tap.
+ * Four layers sit at different depths inside one `preserve-3d` stack — the
+ * frame, the artwork, the caption and the specular highlight — so the tile
+ * genuinely rotates in 3D rather than being a flat image skewed with a
+ * transform. Every value is a spring on a motion value, so pointer movement
+ * drives the animation without ever re-rendering React.
  */
 
-/** Maximum rotation in degrees at the card's corners. */
-const MAX_TILT = 12;
-/** How far the artwork shifts against the frame, in pixels. */
-const PARALLAX = 14;
-
-function usePrefersReducedMotion(): boolean {
-  // Read once per mount; the listener only matters for OS-level changes, which
-  // the reduced-motion block in index.css already handles visually.
-  if (typeof window === "undefined") return true;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
+/** Rotation in degrees at the tile's corners. */
+const MAX_TILT = 14;
+/** Depth of each layer, in pixels. Larger = further from the viewer. */
+const DEPTH_ART = 34;
+const DEPTH_CAPTION = 62;
+const DEPTH_SHEEN = 20;
 
 export function Portfolio3D({
   url,
@@ -33,35 +28,51 @@ export function Portfolio3D({
   onBroken: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const reduced = usePrefersReducedMotion();
+  const reduced = useReducedMotion();
 
-  // Normalised -0.5..0.5 pointer position within the card.
+  // Pointer position within the tile, normalised to -0.5..0.5.
   const px = useMotionValue(0);
   const py = useMotionValue(0);
+  // 0 while the pointer is away, 1 while it is over the tile.
+  const hoverRaw = useMotionValue(0);
 
-  // Spring smoothing is what makes this read as a physical object rather than
-  // a cursor-following image: the card keeps gliding briefly after the pointer
-  // stops, then settles.
-  const springConfig = { stiffness: 260, damping: 22, mass: 0.6 };
-  const sx = useSpring(px, springConfig);
-  const sy = useSpring(py, springConfig);
+  // The springs are what make this read as an object with mass: the tile keeps
+  // gliding briefly after the pointer stops, then settles instead of snapping.
+  const sx = useSpring(px, { stiffness: 220, damping: 20, mass: 0.7 });
+  const sy = useSpring(py, { stiffness: 220, damping: 20, mass: 0.7 });
+  const hover = useSpring(hoverRaw, { stiffness: 300, damping: 24 });
 
   const rotateY = useTransform(sx, [-0.5, 0.5], [-MAX_TILT, MAX_TILT]);
   const rotateX = useTransform(sy, [-0.5, 0.5], [MAX_TILT, -MAX_TILT]);
 
-  const shineX = useTransform(sx, [-0.5, 0.5], ["18%", "82%"]);
-  const shineY = useTransform(sy, [-0.5, 0.5], ["12%", "88%"]);
-  const artX = useTransform(sx, [-0.5, 0.5], [PARALLAX, -PARALLAX]);
-  const artY = useTransform(sy, [-0.5, 0.5], [PARALLAX, -PARALLAX]);
+  // Counter-parallax: the artwork shifts against the frame as the tile turns.
+  const artX = useTransform(sx, [-0.5, 0.5], [22, -22]);
+  const artY = useTransform(sy, [-0.5, 0.5], [22, -22]);
+  const artScale = useTransform(hover, [0, 1], [1.04, 1.12]);
 
-  const lift = useSpring(0, { stiffness: 300, damping: 20 });
+  // The specular highlight tracks the pointer like light on glass.
+  const sheenX = useTransform(sx, [-0.5, 0.5], ["20%", "80%"]);
+  const sheenY = useTransform(sy, [-0.5, 0.5], ["14%", "86%"]);
+  const sheenOpacity = useTransform(hover, [0, 1], [0, 0.85]);
 
-  // Hoisted out of the JSX: hooks must not be called conditionally, and this
-  // one builds a gradient that follows the pointer.
-  const shine = useTransform(
-    [shineX, shineY],
+  // The cast shadow slides opposite the tilt, which is what sells the height.
+  const shadowX = useTransform(sx, [-0.5, 0.5], [-14, 14]);
+  const shadowY = useTransform(sy, [-0.5, 0.5], [-10, 18]);
+  
+
+  // All of the above are built unconditionally at the top of the component;
+  // `reduced` only decides whether they are applied, so no hook order can drift.
+  const sheen = useTransform(
+    [sheenX, sheenY],
     ([x, y]) =>
-      `radial-gradient(60% 60% at ${x} ${y}, rgba(255,255,255,0.22), transparent 70%)`,
+      `radial-gradient(65% 65% at ${x} ${y}, rgba(255,255,255,0.30), transparent 68%)`,
+  );
+  const shadowBlurPx = useTransform(hover, [0, 1], [16, 44]);
+  // Hoisted: hooks cannot be called conditionally, and this renders inside a
+  // `!reduced` branch.
+  const shadowFilter = useTransform(
+    shadowBlurPx,
+    (b) => `blur(${b}px)`,
   );
 
   const handleMove = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -70,33 +81,43 @@ export function Portfolio3D({
     if (!rect) return;
     px.set((event.clientX - rect.left) / rect.width - 0.5);
     py.set((event.clientY - rect.top) / rect.height - 0.5);
-    lift.set(1);
   };
 
   const handleLeave = () => {
     px.set(0);
     py.set(0);
-    lift.set(0);
+    hoverRaw.set(0);
   };
 
   return (
     <div
       className="depth-3d"
-      onPointerEnter={() => lift.set(1)}
+      onPointerEnter={() => hoverRaw.set(1)}
       onPointerMove={handleMove}
       onPointerLeave={handleLeave}
     >
+      {/* Cast shadow sits behind the tile and moves with it. */}
+      {!reduced && (
+        <motion.span
+          aria-hidden
+          style={{ x: shadowX, y: shadowY, filter: shadowFilter }}
+          className="pointer-events-none absolute inset-x-2 -bottom-1 h-6 rounded-[50%] opacity-70 blur-lg"
+        />
+      )}
+
       <motion.figure
         ref={ref}
         style={
           reduced
             ? undefined
-            : { rotateX, rotateY, transformStyle: "preserve-3d" }
+            : { rotateX, rotateY, transformStyle: "preserve-3d" as const }
         }
-        initial={{ opacity: 0, y: 24 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-60px" }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        // The entrance is a 3D flip-in: the tile arrives standing up, then
+        // settles flat, which sets up the tilt before the pointer ever arrives.
+        initial={reduced ? { opacity: 0 } : { opacity: 0, y: 40, rotateX: 22 }}
+        whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+        viewport={{ once: true, margin: "-70px" }}
+        transition={{ type: "spring", stiffness: 110, damping: 18, mass: 0.9 }}
         className="clay group relative block overflow-hidden will-change-transform"
       >
         {url ? (
@@ -106,43 +127,53 @@ export function Portfolio3D({
             loading="lazy"
             decoding="async"
             onError={onBroken}
-            style={reduced ? undefined : { x: artX, y: artY, scale: 1.06 }}
-            className="w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+            style={
+              reduced
+                ? undefined
+                : {
+                    x: artX,
+                    y: artY,
+                    scale: artScale,
+                    transform: `translateZ(${DEPTH_ART}px)`,
+                  }
+            }
+            className="w-full object-cover"
           />
         ) : (
-          <div className="clay-inset flex aspect-[4/3] items-center justify-center border-0">
+          <div
+            style={reduced ? undefined : { transform: `translateZ(${DEPTH_ART}px)` }}
+            className="clay-inset flex aspect-[4/3] items-center justify-center border-0"
+          >
             <span className="font-display text-lg text-muted-foreground">{title}</span>
           </div>
         )}
 
-        {/* Specular highlight that tracks the pointer — sells the tilt as a
-            physical surface catching light rather than a flat image skewing. */}
+        {/* Specular highlight, floating just above the artwork. */}
         {!reduced && (
           <motion.span
             aria-hidden
-            style={{ background: shine }}
-            className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+            style={{ background: sheen, opacity: sheenOpacity, transform: `translateZ(${DEPTH_SHEEN}px)` }}
+            className="pointer-events-none absolute inset-0"
           />
         )}
 
-        {/* Depth frame that separates from the artwork as it tilts. */}
-        {!reduced && (
-          <motion.span
-            aria-hidden
-            style={{ opacity: lift, zIndex: 2 }}
-            className="pointer-events-none absolute inset-0 rounded-[inherit] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)]"
-          />
-        )}
+        {/* Inner rim catches the light along the near edge. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-[inherit] shadow-[inset_0_1px_0_rgba(255,255,255,0.35),inset_0_-1px_0_rgba(0,0,0,0.12)]"
+        />
 
+        {/* Caption sits furthest forward, so it appears to float above the print. */}
         <figcaption
-          style={{ transform: "translateZ(30px)" }}
-          className={cn(
-            "pointer-events-none absolute inset-x-0 bottom-0 translate-y-2 bg-gradient-to-t",
-            "from-black/75 to-transparent p-4 opacity-0 transition duration-300",
-            "group-hover:translate-y-0 group-hover:opacity-100",
-          )}
+          style={reduced ? undefined : { transform: `translateZ(${DEPTH_CAPTION}px)` }}
+          className="pointer-events-none absolute inset-x-0 bottom-0 p-4"
         >
-          <span className="text-sm font-medium text-white">{title}</span>
+          {/* A light scrim keeps the title legible over any artwork without
+              hiding it; the title itself still fades in on hover. */}
+          <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-transparent opacity-70 transition-opacity duration-300 group-hover:opacity-100" />
+          <span className="font-display relative translate-y-2 text-sm font-semibold text-white opacity-0 drop-shadow-sm transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+            {title}
+          </span>
         </figcaption>
       </motion.figure>
     </div>

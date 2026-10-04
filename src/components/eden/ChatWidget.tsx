@@ -2,11 +2,12 @@ import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowUp, Bot, MessagesSquare, Sparkles, X } from "lucide-react";
+import { MessageBubble } from "@/components/eden/MessageBubble";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+
 
 type Mode = "closed" | "choose" | "ai" | "manager";
 
@@ -145,7 +146,7 @@ function AiChat({ onBack }: { onBack: () => void }) {
   return (
     <ChatShell title="Eden Assistant" subtitle="Instant · always on" onBack={onBack} scrollRef={scrollRef}>
       {messages.map((m, i) => (
-        <Bubble key={i} fromAi={m.role === "model"} text={m.text} />
+        <Bubble key={i} index={i} fromAi={m.role === "model"} text={m.text} />
       ))}
       {busy && (
         <div className="flex gap-1 px-2 py-1">
@@ -247,8 +248,15 @@ function ManagerChat({ onBack }: { onBack: () => void }) {
           Say hello — {user?.email ?? "you"} are chatting with the Eden team.
         </p>
       ) : (
-        messages.map((m) => (
-          <Bubble key={m._id} fromAi={m.senderRole === "manager"} text={m.content} />
+        messages.map((m, i) => (
+          <MessageBubble
+            key={m._id}
+            side={m.senderRole === "manager" ? "studio" : "client"}
+            text={m.content}
+            senderName={m.senderRole === "manager" ? "Eden studio" : undefined}
+            createdAt={m.createdAt}
+            index={i}
+          />
         ))
       )}
       <ChatInput value={input} onChange={setInput} onSend={send} disabled={!session} />
@@ -287,22 +295,19 @@ function ChatShell({
   );
 }
 
-function Bubble({ fromAi, text }: { fromAi: boolean; text: string }) {
+function Bubble({
+  fromAi,
+  text,
+  index,
+}: {
+  fromAi: boolean;
+  text: string;
+  index?: number;
+}) {
+  // Assistant replies read as the studio's voice, so they use the same
+  // left-hand bubble as a manager's reply.
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={cn("flex", fromAi ? "justify-start" : "justify-end")}
-    >
-      <div
-        className={cn(
-          "max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
-          fromAi ? "clay-sm rounded-bl-md" : "rounded-br-md bg-primary text-primary-foreground",
-        )}
-      >
-        {text}
-      </div>
-    </motion.div>
+    <MessageBubble side={fromAi ? "studio" : "client"} text={text} index={index} />
   );
 }
 
