@@ -102,15 +102,22 @@ export function AdminPortfolio() {
                 </div>
               )}
               <button
-                onClick={async () => {
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  // Deleting is unrecoverable and the file bytes go with it, so
+                  // it is confirmed rather than one stray tap away.
+                  if (!window.confirm(`Delete “${item.title}”? This cannot be undone.`)) return;
                   try {
                     await remove({ id: item._id as never });
-                    toast.success("Removed");
+                    toast.success("Deleted");
                   } catch {
                     toast.error("Delete failed");
                   }
                 }}
-                className="absolute right-2 top-2 flex size-8 items-center justify-center rounded-full bg-white/90 text-foreground opacity-0 shadow transition-opacity hover:text-destructive group-hover:opacity-100"
+                // Always visible on touch screens, where there is no hover to reveal it.
+                // This was effectively invisible on mobile, which is where a
+                // wrongly uploaded image most needs deleting.
+                className="absolute right-2 top-2 flex size-8 items-center justify-center rounded-full bg-white/90 text-foreground opacity-100 shadow transition-opacity hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
                 aria-label={`Delete ${item.title}`}
               >
                 <Trash2 className="size-4" />

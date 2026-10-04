@@ -139,6 +139,72 @@ const schema = defineSchema(
       createdAt: v.optional(v.number()),
     }),
 
+    // ── Handmade products + the people who make them with the studio ──
+    /**
+     * A person the studio collaborates with on a product. `sharePercent` is the
+     * slice of each sale that goes to them; the studio keeps the remainder.
+     */
+    collaborators: defineTable({
+      name: v.string(),
+      /** Shown on the public product page, e.g. "@kita.studio". */
+      handle: v.optional(v.string()),
+      /** Short line about what they make. */
+      bio: v.optional(v.string()),
+      /** Default cut for their products, 0-100. */
+      sharePercent: v.optional(v.number()),
+      /** Contact the studio uses to pay them out. Never shown publicly. */
+      payoutEmail: v.optional(v.string()),
+      active: v.optional(v.boolean()),
+      createdAt: v.number(),
+    })
+      .index("by_created", ["createdAt"])
+      .index("by_name", ["name"]),
+
+    /**
+     * A physical product the studio sells, optionally made with a collaborator.
+     *
+     * `collaboratorSharePercent` is snapshotted onto the product so changing a
+     * collaborator's default later never rewrites the split on past sales.
+     */
+    products: defineTable({
+      name: v.string(),
+      description: v.optional(v.string()),
+      /** Selling price in rupees, what the customer actually pays. */
+      price: v.number(),
+      /** Optional maker. Undefined means the studio makes it alone. */
+      collaboratorId: v.optional(v.id("collaborators")),
+      /** Snapshot of the collaborator's cut at the time this product was saved. */
+      collaboratorSharePercent: v.optional(v.number()),
+      imageStorageId: v.optional(v.id("_storage")),
+      /** "live" shows it in the storefront; "draft" hides it. */
+      status: v.optional(v.union(v.literal("draft"), v.literal("live"))),
+      createdAt: v.number(),
+    })
+      .index("by_status_created", ["status", "createdAt"])
+      .index("by_collaborator", ["collaboratorId"]),
+
+    /**
+     * One row per sale of a product, so what each collaborator earned is a fact
+     * in the database rather than a number recomputed from whatever the product
+     * happens to be priced at today.
+     */
+    productSales: defineTable({
+      productId: v.id("products"),
+      productName: v.string(),
+      collaboratorId: v.optional(v.id("collaborators")),
+      collaboratorName: v.optional(v.string()),
+      /** What the customer paid. */
+      gross: v.number(),
+      /** Rupees owed to the collaborator for this sale. */
+      collaboratorShare: v.number(),
+      /** What the studio kept. */
+      studioShare: v.number(),
+      orderId: v.optional(v.id("orders")),
+      createdAt: v.number(),
+    })
+      .index("by_collaborator_created", ["collaboratorId", "createdAt"])
+      .index("by_created", ["createdAt"]),
+
     // abuse protection — one row per (limit name, caller key); count resets each window
     rateLimits: defineTable({
       name: v.string(), // which limit, e.g. "chatSend"
@@ -177,6 +243,12 @@ const schema = defineSchema(
        * a client who paid nothing.
        */
       readFailed: v.optional(v.boolean()),
+      /**
+       * Set when a human read the receipt and typed the amount in, rather than
+       * the vision model doing it. A studio-recorded amount must never be
+       * silently thrown away by a later re-scan.
+       */
+      recordedBy: v.optional(v.string()),
       reviewedAt: v.optional(v.number()),
     }).index("by_proof", ["proofId"]),
 

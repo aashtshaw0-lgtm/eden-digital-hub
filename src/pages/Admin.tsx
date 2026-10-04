@@ -6,6 +6,7 @@ import { AdminCalculator } from "@/components/eden/admin/AdminCalculator";
 import { AdminCredits } from "@/components/eden/admin/AdminCredits";
 import { AdminCoupons } from "@/components/eden/admin/AdminCoupons";
 import { AdminServices } from "@/components/eden/admin/AdminServices";
+import { AdminProducts } from "@/components/eden/admin/AdminProducts";
 import { AdminRoles } from "@/components/eden/admin/AdminRoles";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/convex/_generated/api";
@@ -21,6 +22,7 @@ const TABS: { key: string; label: string; superOnly?: boolean }[] = [
   { key: "inbox", label: "Live Inbox" },
   { key: "portfolio", label: "Portfolio" },
   { key: "services", label: "Services" },
+  { key: "products", label: "Products & People" },
   { key: "website", label: "Website" },
   { key: "calculator", label: "Profit Split" },
   { key: "roles", label: "Roles", superOnly: true },
@@ -66,6 +68,7 @@ export default function Admin() {
       {tab === "inbox" && <AdminInbox />}
       {tab === "portfolio" && <AdminPortfolio />}
       {tab === "services" && <AdminServices />}
+      {tab === "products" && <AdminProducts />}
       {tab === "website" && <AdminSettings />}
       {tab === "calculator" && <AdminCalculator />}
       {tab === "roles" && role === "super_owner" && (

@@ -30,6 +30,65 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
  */
 const GEMINI_MODEL = "gemini-2.5-flash";
 
+/**
+ * Records what the studio read off a receipt by hand.
+ *
+ * The automatic read is deliberately cautious — when it cannot see an amount
+ * it reports nothing rather than guessing, which is right, but it left the
+ * studio with no way to say "this screenshot clearly shows ₹55 against a
+ * ₹1,686 order". This writes that amount as a first-class review so the board
+ * immediately shows the real shortfall instead of "amount not read".
+ */
+export const recordPaidAmount = mutation({
+  args: {
+    orderId: v.id("orders"),
+    paidAmount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Order not found.");
+    const proof = await ctx.db
+      .query("paymentProofs")
+      .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
+      .first();
+    if (!proof) throw new Error("Attach the payment proof first.");
+
+    const amount = Math.round(args.paidAmount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      throw new Error("Enter the amount printed on the receipt.");
+    }
+
+    const fields = {
+      paidAmount: amount,
+      expectedAmount: order.totalPrice,
+      // A studio-read amount is a real reading, so it clears the "unread" flag.
+      readFailed: false,
+      // Marks it as human-entered so a later re-scan cannot overwrite it.
+      recordedBy: "studio",
+      summary: `Studio read ₹${amount.toLocaleString("en-IN")} off the receipt against an order of ₹${order.totalPrice.toLocaleString("en-IN")}.`,
+      stillNeeded:
+        amount < order.totalPrice
+          ? [
+              `₹${(order.totalPrice - amount).toLocaleString("en-IN")} is still outstanding — ask the client for the balance.`,
+            ]
+          : [],
+      reviewedAt: Date.now(),
+    };
+
+    const existing = await ctx.db
+      .query("paymentReviews")
+      .withIndex("by_proof", (q) => q.eq("proofId", proof._id))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, fields);
+      return existing._id;
+    }
+    return await ctx.db.insert("paymentReviews", { proofId: proof._id, ...fields });
+  },
+});
+
 /** Short-lived upload URL for intake reference files (signed-in clients). */
 export const generateUploadUrl = mutation({
   args: {},
@@ -110,7 +169,9 @@ export const reviewProof = mutation({
     // A review that could not read the amount is worth retrying — clearing it
     // here is what lets a re-scan replace a failed read instead of the row
     // sticking forever on "amount not legible".
-    if (already?.readFailed) await ctx.db.delete(already._id);
+    // A failed auto-read is worth retrying, but a figure the studio typed in by
+    // hand outranks anything a re-scan could produce, so it is left alone.
+    if (already?.readFailed && !already.recordedBy) await ctx.db.delete(already._id);
     else if (already) return { queued: false as const, reviewId: already._id };
 
     // Fail fast on a missing image or order rather than inside the job.
@@ -590,6 +651,12 @@ export const paymentReadiness = query({
       upiConfigured: upiId !== null,
       upiId,
       hasQr: Boolean(row?.qrStorageId),
+      /**
+       * Whether receipts can be read automatically at all. Surfaced so the
+       * studio is told *why* an amount is unread instead of being left to
+       * wonder whether the screenshot was bad.
+       */
+      aiConfigured: Boolean(GEMINI_API_KEY),
     };
   },
 });
@@ -922,6 +989,13 @@ async function analyzeWithGemini(
       "Read the uploaded screenshot and extract the payer proof details.",
       "The amount actually debited is the most important field. Read it even if",
       "it is small or does not match what the client was supposed to pay.",
+      "On a UPI or wallet receipt the debited amount is usually the single",
+      "largest piece of text on the screen, often next to the word 'to' or",
+      "'Paid'. Look for that headline figure first and report it exactly as",
+      "printed, including its currency symbol or thousands separators.",
+      "Never report the expected or billed amount as the amount paid, and never",
+      "leave the field empty just because it looks wrong or too small - an",
+      "underpayment is exactly what this check exists to catch.",
     ].join("\n"),
     generationConfig: {
       temperature: 0,
@@ -992,8 +1066,12 @@ async function analyzeWithGemini(
         "}",
         "Rules:",
         "- paidAmount is the amount actually debited, exactly as printed (e.g. \"55\" or",
-        "  \"₹55.00\"). Use an empty string if the amount is not visible at all.",
-        "  Never substitute the expected or billed amount for the amount paid.",
+        "  \"₹55.00\"). On these receipts the debited amount is the big headline",
+        "  figure near the top of the screen - report that number.",
+        "  Use an empty string ONLY if no amount appears anywhere in the image.",
+        "  Never substitute the expected or billed amount for the amount paid, and",
+        "  never return empty because the figure looks surprisingly small - an",
+        "  underpayment is exactly what this check exists to catch.",
         "- tipAmount is any extra amount above the visible billed amount; empty string or 0 if none.",
         "- payerName is who SENT the money (the source account/wallet holder).",
         "  The person named next to 'to' is the RECIPIENT, not the payer - put that in payeeName.",

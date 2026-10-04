@@ -29,6 +29,7 @@ export function SiteFooter() {
 
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
           <Link to="/services" className="hover:text-foreground">Services</Link>
+          <Link to="/products" className="hover:text-foreground">Handmade</Link>
           <Link to="/credits" className="hover:text-foreground">Credits</Link>
           <Link to="/portal" className="hover:text-foreground">Portal</Link>
           <Link to="/checkout" className="hover:text-foreground">Checkout</Link>

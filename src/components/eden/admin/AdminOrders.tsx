@@ -85,10 +85,12 @@ export function AdminOrders() {
   const confirmPayment = useMutation(api.orders.confirmPayment);
   const generateProofUrl = useMutation(api.orders.generateProofUrl);
   const attachProof = useMutation(api.orders.attachProof);
+  const recordPaidAmount = useMutation(api.orders.recordPaidAmount);
   const [selected, setSelected] = useState<Order | null>(null);
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const [recording, setRecording] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetRef = useRef<Order | null>(null);
 
@@ -143,6 +145,29 @@ export function AdminOrders() {
       toast.error(e instanceof Error ? e.message : "Confirm failed");
     } finally {
       setConfirming(null);
+    }
+  };
+
+  /** Types in what the studio read off the screenshot, so a shortfall shows up. */
+  const recordAmount = async (order: Order, raw: string) => {
+    const value = Math.round(Number(raw));
+    if (!Number.isFinite(value) || value < 0) {
+      toast.error("Enter the amount printed on the receipt.");
+      return;
+    }
+    setRecording(order._id);
+    try {
+      await recordPaidAmount({ orderId: order._id, paidAmount: value });
+      const short = order.totalPrice - value;
+      toast.success(
+        short > 0
+          ? `Recorded ${inr(value)} — ${inr(short)} still outstanding`
+          : `Recorded ${inr(value)} — fully paid`,
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not record the amount");
+    } finally {
+      setRecording(null);
     }
   };
 
@@ -223,6 +248,30 @@ export function AdminOrders() {
               >
                 Open Website settings
               </a>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {readiness && !readiness.aiConfigured && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-5 overflow-hidden"
+          >
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-slate-500/10 px-4 py-3.5 ring-1 ring-slate-500/30">
+              <ScanLine className="size-5 shrink-0 text-slate-600 dark:text-slate-300" />
+              <div className="min-w-[220px] flex-1">
+                <p className="text-sm font-semibold">Automatic receipt reading is off</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  No receipt-reading key is set, so amounts are never read from screenshots and
+                  every order shows “Amount not read”. Add <code>GEMINI_API_KEY</code> in the Keys
+                  tab to switch it on — or just type the amount into the Record box on any order,
+                  which does the same job by hand.
+                </p>
+              </div>
             </div>
           </motion.div>
         )}
@@ -335,6 +384,8 @@ export function AdminOrders() {
                     reviewing={reviewing === o.proof?._id}
                     onConfirm={() => void runConfirm(o)}
                     confirming={confirming === o._id}
+                    onRecord={(value) => void recordAmount(o, value)}
+                    recording={recording === o._id}
                   />
                 </td>
 
@@ -525,6 +576,8 @@ function PaidCell({
   reviewing,
   onConfirm,
   confirming,
+  onRecord,
+  recording,
 }: {
   order: Order;
   onPickProof: () => void;
@@ -533,11 +586,13 @@ function PaidCell({
   reviewing: boolean;
   onConfirm: () => void;
   confirming: boolean;
+  onRecord: (value: string) => void;
+  recording: boolean;
 }) {
   const { known, paid: isPaid } = paymentState(order);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <span
         className={cn(
           "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
@@ -587,6 +642,39 @@ function PaidCell({
           {confirming ? <Loader2 className="size-3 animate-spin" /> : <BadgeCheck className="size-3" />}
           Confirm
         </button>
+      )}
+
+      {/* The escape hatch: the studio can see the screenshot even when the
+          automatic read cannot, and typing the figure in is what turns
+          "amount not read" into a real "short by Rs X" warning. */}
+      {order.proof && !known && order.status === "pending" && (
+        <form
+          className="flex items-center gap-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const input = e.currentTarget.elements.namedItem("amount") as HTMLInputElement | null;
+            if (input) onRecord(input.value);
+          }}
+        >
+          <input
+            name="amount"
+            type="number"
+            min={0}
+            inputMode="numeric"
+            placeholder="₹ paid"
+            aria-label={`Amount paid on ${order.serviceName} order`}
+            className="clay-inset w-20 rounded-lg px-2 py-1 text-xs tabular-nums outline-none focus:ring-2 focus:ring-primary/40"
+          />
+          <button
+            type="submit"
+            disabled={recording}
+            title="Type what the receipt shows, then tap to record it"
+            className="clay-sm inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary hover:underline disabled:opacity-50"
+          >
+            {recording ? <Loader2 className="size-3 animate-spin" /> : <Receipt className="size-3" />}
+            Record
+          </button>
+        </form>
       )}
     </div>
   );
