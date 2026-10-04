@@ -1,11 +1,12 @@
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/convex/_generated/api";
+import { ProofRequest } from "@/components/eden/ProofRequest";
 import { formatDate, inr } from "@/lib/format";
 import { useSeo } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowUpRight, LogOut, PackageOpen, ShieldCheck } from "lucide-react";
-import { useEffect } from "react";
+import { ArrowUpRight, CheckCircle2, LogOut, PackageOpen, ReceiptIndianRupee, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -21,6 +22,8 @@ export default function Portal() {
   const orders = useQuery(api.orders.listMine);
   const syncRole = useMutation(api.users.syncUserRole);
   const role = useQuery(api.users.myRole);
+  // Which pending order is showing its proof request inline.
+  const [proofFor, setProofFor] = useState<string | null>(null);
 
   useEffect(() => {
     void syncRole();
@@ -117,6 +120,62 @@ export default function Portal() {
           </div>
         )}
       </section>
+
+      {/* Proof requests — one per order still waiting on money */}
+      {orders
+        ?.filter((o) => o.status === "pending")
+        .map((o) => {
+            const open = proofFor === o._id;
+            if (o.hasProof) {
+              return (
+                <section key={o._id} className="mt-6">
+                  <div className="clay flex items-center gap-4 p-5">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600/12">
+                      <CheckCircle2 className="size-5 text-emerald-700" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">
+                        Proof received for {o.serviceName} · {o.tierName}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        We're checking it now — you'll get a WhatsApp update shortly.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              );
+            }
+            return (
+              <section key={o._id} className="mt-6">
+                {open ? (
+                <ProofRequest
+                  orderId={o._id}
+                  amountDue={o.totalPrice}
+                  serviceLabel={`${o.serviceName} · ${o.tierName}`}
+                />
+              ) : (
+                <button
+                  onClick={() => setProofFor(o._id)}
+                  className="clay clay-press flex w-full items-center gap-4 p-5 text-left"
+                >
+                  <span className="tint flex size-10 shrink-0 items-center justify-center rounded-xl">
+                    <ReceiptIndianRupee className="size-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">
+                      Send proof for {o.serviceName} · {o.tierName}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {inr(o.totalPrice)} due — upload your UPI screenshot so we can confirm your
+                      order.
+                    </span>
+                  </span>
+                  <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" />
+                </button>
+              )}
+            </section>
+          );
+        })}
     </main>
   );
 }

@@ -12,11 +12,18 @@ import { cn } from "@/lib/utils";
 import { useSeo } from "@/lib/seo";
 import type { Id } from "@/convex/_generated/dataModel";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Copy, HeartHandshake, Loader2, QrCode, Sparkles, Trash2 } from "lucide-react";
+import { Check, Copy, HeartHandshake, Loader2, QrCode, ReceiptIndianRupee, Sparkles, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
-import { Link, useNavigate } from "react-router";
+import { ProofRequest } from "@/components/eden/ProofRequest";
+import { Link } from "react-router";
 import { toast } from "sonner";
+
+interface CreatedOrder {
+  orderId: Id<"orders">;
+  label: string;
+  amount: number;
+}
 
 interface Req {
   clientName: string;
@@ -38,13 +45,14 @@ export default function Checkout() {
   useSeo({ title: `Checkout | Eden - Digital Design & Management` });
   const { items, total, removeItem, clear } = useCart();
   const { upiId, qrImageUrl } = useSettings();
-  const navigate = useNavigate();
   const createOrder = useMutation(api.orders.create);
   const recordTip = useMutation(api.orders.recordTip);
   const [paying, setPaying] = useState(false);
   const [copied, setCopied] = useState(false);
   const [tipAmount, setTipAmount] = useState(0);
   const [customTip, setCustomTip] = useState("");
+  // Orders just created, so we can ask for proof before leaving the page.
+  const [createdOrders, setCreatedOrders] = useState<CreatedOrder[] | null>(null);
 
   const tip = customTip.trim() === "" ? tipAmount : Math.max(0, Number(customTip) || 0);
   const grandTotal = total + tip;
@@ -63,6 +71,7 @@ export default function Checkout() {
 
   const confirmPayment = async () => {
     setPaying(true);
+    const created: CreatedOrder[] = [];
     try {
       for (const item of items) {
         const r = item.requirements as unknown as Req;
@@ -78,16 +87,61 @@ export default function Checkout() {
         if (tip > 0) {
           await recordTip({ orderId, tipAmount: tip });
         }
+        created.push({
+          orderId,
+          label: `${item.serviceName} · ${item.tierName}`,
+          amount: item.price + tip,
+        });
       }
       clear();
-      toast.success("Order received — we'll confirm on WhatsApp shortly.");
-      navigate("/portal");
+      toast.success("Order received — send your payment proof to confirm it.");
+      setCreatedOrders(created);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not place the order.");
     } finally {
       setPaying(false);
     }
   };
+
+  /* After checkout: ask for the proof before the client leaves the page. */
+  if (createdOrders) {
+    return (
+      <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center"
+        >
+          <span className="tint mx-auto flex size-14 items-center justify-center rounded-3xl">
+            <ReceiptIndianRupee className="size-7" />
+          </span>
+          <h1 className="font-display mt-5 text-3xl font-semibold tracking-tight">
+            One step left — send your proof
+          </h1>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
+            Your order is in the studio queue. Upload your UPI screenshot and we'll confirm it
+            right away, usually in a few minutes.
+          </p>
+        </motion.div>
+
+        <div className="mt-8 space-y-5">
+          {createdOrders.map((o) => (
+            <ProofRequest key={o.orderId} orderId={o.orderId} amountDue={o.amount} serviceLabel={o.label} />
+          ))}
+        </div>
+
+        <div className="mt-8 flex justify-center">
+          <Link
+            to="/portal"
+            className="text-sm font-semibold text-muted-foreground hover:text-foreground"
+          >
+            Skip for now · go to my orders
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   if (items.length === 0) {
     return (

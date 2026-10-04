@@ -196,17 +196,26 @@ export const create = mutation({
   },
 });
 
-/** Signed-in client's own order history. */
+/** Signed-in client's own order history, flagged with whether proof is in. */
 export const listMine = query({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) return [];
-    return await ctx.db
+    const orders = await ctx.db
       .query("orders")
       .withIndex("by_client", (q) => q.eq("clientId", userId))
       .order("desc")
       .collect();
+    return await Promise.all(
+      orders.map(async (order) => {
+        const proof = await ctx.db
+          .query("paymentProofs")
+          .withIndex("by_order", (q) => q.eq("orderId", order._id))
+          .first();
+        return { ...order, hasProof: Boolean(proof) };
+      }),
+    );
   },
 });
 
