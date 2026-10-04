@@ -30,11 +30,28 @@ export function influenceFor(amount: number): number {
 }
 
 /**
+ * Reduces a name to something safe to publish.
+ *
+ * The wall is public, so it shows a first name and a last initial — enough for
+ * a supporter to recognise their own credit, not enough to publish someone's
+ * full identity. Applied server-side in the query below, so the stored name
+ * never leaves the backend for an anonymous visitor.
+ */
+export function maskName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "A supporter";
+  // A single word is already all given name, so there is nothing to hide.
+  if (parts.length === 1) return parts[0];
+  const initial = parts[parts.length - 1].charAt(0).toUpperCase();
+  return `${parts[0]} ${initial}.`;
+}
+
+/**
  * Public credits wall, ordered by influence so the loudest names sit on top.
  *
- * The rupee amount is deliberately omitted: the wall is a thank-you, not a
- * ledger, and publishing what each person paid reads as billing them a second
- * time. Tiers and ordering still use the real amount server-side.
+ * Two things are deliberately withheld: the rupee amount (the wall is a
+ * thank-you, not a ledger) and the full name (see `maskName`). Tiers and
+ * ordering still use the real values server-side, so ranking is unaffected.
  */
 export const listAll = query({
   args: {},
@@ -43,9 +60,9 @@ export const listAll = query({
     return credits
       .map((credit) => ({
         _id: credit._id,
-        name: credit.name,
+        name: maskName(credit.name),
         greatness: credit.greatness,
-        tier: tierFor(credit.amount ?? 0),
+        tier: credit.tier ?? tierFor(credit.amount ?? 0),
         influence: influenceFor(credit.amount ?? 0),
         kind: (credit.kind ?? "tip") as "tip" | "marketing",
         createdAt: credit.createdAt,

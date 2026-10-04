@@ -197,7 +197,7 @@ describe("orders — access control", () => {
   });
 });
 
-describe("credits — the public wall leaks no money", () => {
+describe("credits — the public wall leaks neither money nor full names", () => {
   it("omits the amount but keeps the tier", async () => {
     await t.run((ctx) =>
       ctx.db.insert("credits", {
@@ -212,6 +212,52 @@ describe("credits — the public wall leaks no money", () => {
     const wall = await t.query(api.credits.listAll, {});
     expect(wall[0].amount).toBeUndefined();
     expect(wall[0].tier).toBe("legendary");
+  });
+
+  it("reduces a public name to a first name and last initial", async () => {
+    await t.run((ctx) =>
+      ctx.db.insert("credits", {
+        name: "Arav Sharma",
+        amount: 900,
+        kind: "tip",
+        createdAt: 1,
+      }),
+    );
+    const wall = await t.query(api.credits.listAll, {});
+    expect(wall[0].name).toBe("Arav S.");
+    expect(wall[0].name).not.toContain("Sharma");
+  });
+
+  it("keeps the full name and amount in the admin ledger", async () => {
+    process.env.SUPER_OWNER_EMAIL = "owner@example.com";
+    await t.run((ctx) =>
+      ctx.db.insert("credits", {
+        name: "Arav Sharma",
+        amount: 900,
+        kind: "tip",
+        createdAt: 1,
+      }),
+    );
+    signIn(await createUser(t, { email: "owner@example.com" }));
+    const ledger = await t.query(api.credits.listForAdmin, {});
+    expect(ledger[0].name).toBe("Arav Sharma");
+    expect(ledger[0].amount).toBe(900);
+    delete process.env.SUPER_OWNER_EMAIL;
+  });
+
+  it("shows a marketing credit at the tier the studio chose", async () => {
+    // A marketing entry has no amount, so deriving the tier from zero would
+    // silently downgrade a deliberate "premium" to "standard" on the wall.
+    process.env.SUPER_OWNER_EMAIL = "owner@example.com";
+    signIn(await createUser(t, { email: "owner@example.com" }));
+    await t.mutation(api.credits.add, {
+      name: "A Sponsor",
+      kind: "marketing",
+      tier: "premium",
+    });
+    const wall = await t.query(api.credits.listAll, {});
+    expect(wall[0].tier).toBe("premium");
+    delete process.env.SUPER_OWNER_EMAIL;
   });
 
   it("stores no amount for a marketing credit", async () => {

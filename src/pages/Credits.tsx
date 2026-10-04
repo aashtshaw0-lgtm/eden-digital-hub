@@ -1,5 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { LEGENDARY_THRESHOLD, PREMIUM_THRESHOLD, tierMeta, tierMetaForTier } from "@/lib/credits";
+import type { CreditTierLabel } from "@/lib/credits";
 import { inr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSeo } from "@/lib/seo";
@@ -24,8 +25,9 @@ export default function Credits() {
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           The studio runs on the people who back it. Tips of {inr(PREMIUM_THRESHOLD)} and above
           earn a premium credit, {inr(LEGENDARY_THRESHOLD)} and above earns legendary — and the
-          bigger the contribution, the higher the name sits. Some names here are goodwill credits
-          we owe our thanks to rather than payments.
+          bigger the contribution, the higher the name sits. Names are shown as a first name and
+          last initial, and the amounts stay with us. Some entries here are goodwill credits we
+          owe our thanks to rather than payments.
         </p>
       </header>
 
@@ -87,7 +89,7 @@ export default function Credits() {
             // Marketing credits carry no contribution, so the tier the studio chose is
             // used directly rather than derived from an amount.
             const isMarketing = credit.kind === "marketing";
-            const tier = tierMetaForTier(credit.tier);
+            const tier = tierMetaForTier((credit.tier ?? "standard") as CreditTierLabel);
             const Icon = tier.icon;
             return (
               <motion.li

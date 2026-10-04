@@ -101,17 +101,18 @@ export function AdminCredits() {
         <div>
           <h2 className="font-display text-lg font-semibold">Add a name to the credits</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Clients who tip land here automatically. Add a goodwill credit for a sponsor, partner
-            or press mention — it shows on the wall with no amount attached.
+            Clients who tip land here automatically. Add a sponsor, partner or press mention by
+            hand — with a donation amount if they gave one, or without. Either way the public wall
+            shows only a first name and last initial.
           </p>
         </div>
 
-        {/* Tip vs marketing */}
+        {/* With or without a donation amount */}
         <div className="flex gap-2">
           {(
             [
-              { key: "tip" as const, label: "Tip / contribution", icon: HandCoins },
-              { key: "marketing" as const, label: "Marketing credit", icon: Megaphone },
+              { key: "tip" as const, label: "With donation amount", icon: HandCoins },
+              { key: "marketing" as const, label: "Without donation amount", icon: Megaphone },
             ]
           ).map((option) => (
             <button
@@ -153,7 +154,7 @@ export function AdminCredits() {
         <div className="flex flex-wrap items-end gap-3">
           {kind === "tip" ? (
             <>
-              <Field label="Amount (drives the tier)">
+              <Field label="Donation amount (drives the tier)">
                 <input
                   type="number"
                   min={0}
@@ -178,7 +179,7 @@ export function AdminCredits() {
               </motion.span>
             </>
           ) : (
-            <Field label="Display tier (public only)">
+            <Field label="Display tier (no amount behind it)">
               <div className="flex gap-1.5">
                 {TIERS.map((t) => (
                   <button
@@ -263,8 +264,12 @@ export function AdminCredits() {
                         )}
                       </div>
 
-                      {/* The amount is internal — the public wall never shows it. */}
-                      {!isMarketing && (
+                      {/* The donation amount is internal — the public wall never shows it. */}
+                      {isMarketing ? (
+                        <span className="text-xs italic text-muted-foreground/70">
+                          No donation recorded
+                        </span>
+                      ) : (
                         <span className="text-sm font-medium tabular-nums text-muted-foreground">
                           {inr(credit.amount)}
                         </span>

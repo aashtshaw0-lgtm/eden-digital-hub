@@ -167,6 +167,26 @@ describe("orders.createCartWithProof — one transaction for the whole cart", ()
     expect(credits[0].sourceOrderId).toBe(orders[0]!._id);
   });
 
+  it("splits a real cart exactly the way the receipt does", async () => {
+    // The cart reported on in the browser: Logo Design 1499 + YouTube
+    // Thumbnails 499, a 500 tip, and EDEN10 (10% off).
+    await seedCoupon({ code: "EDEN10", kind: "percent", value: 10 });
+    const { placed, orders } = await placeCart({
+      prices: [1499, 499],
+      tipAmount: 500,
+      couponCode: "EDEN10",
+    });
+
+    // 2498 subtotal, 10% = 250 off, so 2248 payable.
+    expect(orders.reduce((sum, o) => sum + o!.totalPrice, 0)).toBe(2248);
+    expect(placed.map((p) => p.amount).reduce((a, b) => a + b, 0)).toBe(2248);
+    // The line amounts must not be the raw tier prices — that is the bug this
+    // guards: a receipt showing 1499 + 499 when 2248 was charged.
+    expect(placed.map((p) => p.amount)).not.toEqual([1499, 499]);
+    expect(placed[0].amount).toBe(1686);
+    expect(placed[1].amount).toBe(562);
+  });
+
   it("writes nothing at all when one line is invalid", async () => {
     const clientId = await createUser(t, { email: "buyer@example.com" });
     signIn(clientId);
