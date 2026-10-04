@@ -437,19 +437,28 @@ export const listAll = query({
   handler: async (ctx) => {
     await requireAdmin(ctx);
     const orders = await ctx.db.query("orders").order("desc").collect();
+
+    // Loaded in three batched reads rather than per order. The old shape made
+    // one indexed query for the proof and another for its review for every row,
+    // so the admin board cost 2N round-trips on a large order book.
+    const [allProofs, allReviews, clients] = await Promise.all([
+      ctx.db.query("paymentProofs").collect(),
+      ctx.db.query("paymentReviews").collect(),
+      Promise.all(
+        [...new Set(orders.map((o) => o.clientId))].map((id) => ctx.db.get(id)),
+      ),
+    ]);
+    const proofByOrder = new Map(allProofs.map((p) => [p.orderId, p]));
+    const reviewByProof = new Map(allReviews.map((r) => [r.proofId, r]));
+    const clientById = new Map(
+      clients.filter((c) => c !== null).map((c) => [c!._id, c!]),
+    );
+
     return await Promise.all(
       orders.map(async (order) => {
-        const client = await ctx.db.get(order.clientId);
-        const proof = await ctx.db
-          .query("paymentProofs")
-          .withIndex("by_order", (q) => q.eq("orderId", order._id))
-          .first();
-        const review = proof
-          ? await ctx.db
-              .query("paymentReviews")
-              .withIndex("by_proof", (q) => q.eq("proofId", proof._id))
-              .first()
-          : undefined;
+        const client = clientById.get(order.clientId) ?? null;
+        const proof = proofByOrder.get(order._id) ?? null;
+        const review = proof ? (reviewByProof.get(proof._id) ?? null) : null;
         const { paidAmount, shortBy, paidSource } = resolvePaidAmount(
           order,
           proof,

@@ -139,12 +139,13 @@ export default function Landing() {
         </div>
 
         <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 [&>*]:mb-4">
-          {(portfolio ?? []).map((item) => (
+          {(portfolio ?? []).map((item, i) => (
             <div key={item._id} className="mb-4 break-inside-avoid">
               <Portfolio3D
                 url={broken.has(item._id) ? undefined : item.url}
                 title={item.title}
                 onBroken={() => setBroken((prev) => new Set(prev).add(item._id))}
+                index={i}
               />
             </div>
           ))}

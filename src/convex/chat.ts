@@ -2,7 +2,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { requireAdmin } from "./lib/rbac";
+import { effectiveRole, requireAdmin } from "./lib/rbac";
 import { enforceRateLimit } from "./lib/rateLimit";
 
 async function viewer(ctx: QueryCtx) {
@@ -48,11 +48,12 @@ export const mySession = query({
 });
 
 /**
- * Whether a user id belongs to the studio side of the conversation.
+ * Whether a user belongs to the studio side of the conversation.
  *
- * Role, not session ownership: a manager replying inside their own support
- * session is still the studio, and keying off ownership mislabels those
- * replies as client messages.
+ * Takes the *effective* role, not the raw stored column: the super owner is
+ * identified by `SUPER_OWNER_EMAIL`, so reading the stored field alone would
+ * silently downgrade them to a customer whenever that column has not yet been
+ * synced — and they would lose access to their own inbox.
  */
 function isStudioRole(role: string | undefined): boolean {
   return role === "manager" || role === "super_owner";
@@ -67,8 +68,7 @@ export const getMessages = query({
     if (!session) return [];
     if (!user) throw new Error("Unauthorized to read this conversation.");
     // RBAC: the session owner, or a manager / super owner.
-    const r = user.role ?? "customer";
-    const isAdmin = isStudioRole(r);
+    const isAdmin = isStudioRole(effectiveRole(user));
     if (session.clientId !== user._id && !isAdmin) {
       throw new Error("Unauthorized to read this conversation.");
     }
@@ -90,7 +90,7 @@ export const getMessages = query({
           const cached = roleCache.get(key);
           if (cached === undefined) {
             const sender = await ctx.db.get(message.senderId);
-            studio = isStudioRole(sender?.role);
+            studio = isStudioRole(effectiveRole(sender));
             roleCache.set(key, studio);
           } else {
             studio = cached;
@@ -109,8 +109,7 @@ export const sendMessage = mutation({
     const user = await viewer(ctx);
     const session = await ctx.db.get(sessionId);
     if (!user || !session) throw new Error("Unauthorized.");
-    const r = user.role ?? "customer";
-    const isAdmin = isStudioRole(r);
+    const isAdmin = isStudioRole(effectiveRole(user));
     if (session.clientId !== user._id && !isAdmin) {
       throw new Error("Unauthorized to post in this conversation.");
     }

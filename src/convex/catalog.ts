@@ -123,8 +123,10 @@ export const seedIfEmpty = mutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
-    const servicesCount = (await ctx.db.query("services").collect()).length;
-    if (servicesCount === 0) {
+    // Existence check only — collecting every service row just to read `.length`
+    // ran on every page load and loaded the whole catalogue for nothing.
+    const servicesCount = await ctx.db.query("services").take(1);
+    if (servicesCount.length === 0) {
       for (const s of SEED_SERVICES) {
         const { tiers, ...service } = s;
         const serviceId = await ctx.db.insert("services", service);

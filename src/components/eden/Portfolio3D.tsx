@@ -22,10 +22,13 @@ export function Portfolio3D({
   url,
   title,
   onBroken,
+  index = 0,
 }: {
   url?: string;
   title: string;
   onBroken: () => void;
+  /** Position in the grid, used to cascade the entrance. */
+  index?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
@@ -49,6 +52,11 @@ export function Portfolio3D({
   const artX = useTransform(sx, [-0.5, 0.5], [22, -22]);
   const artY = useTransform(sy, [-0.5, 0.5], [22, -22]);
   const artScale = useTransform(hover, [0, 1], [1.04, 1.12]);
+
+  // The tile lifts toward the viewer on hover, not just sideways. Combined with
+  // the tilt this is what makes it read as a physical print rather than a
+  // skewed image.
+  const liftZ = useTransform(hover, [0, 1], [0, 34]);
 
   // The specular highlight tracks the pointer like light on glass.
   const sheenX = useTransform(sx, [-0.5, 0.5], ["20%", "80%"]);
@@ -110,14 +118,26 @@ export function Portfolio3D({
         style={
           reduced
             ? undefined
-            : { rotateX, rotateY, transformStyle: "preserve-3d" as const }
+            : {
+                rotateX,
+                rotateY,
+                z: liftZ,
+                transformStyle: "preserve-3d" as const,
+              }
         }
         // The entrance is a 3D flip-in: the tile arrives standing up, then
         // settles flat, which sets up the tilt before the pointer ever arrives.
+        // The per-column delay cascades the grid instead of landing as one block.
         initial={reduced ? { opacity: 0 } : { opacity: 0, y: 40, rotateX: 22 }}
         whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
         viewport={{ once: true, margin: "-70px" }}
-        transition={{ type: "spring", stiffness: 110, damping: 18, mass: 0.9 }}
+        transition={{
+          type: "spring",
+          stiffness: 110,
+          damping: 18,
+          mass: 0.9,
+          delay: reduced ? 0 : Math.min(index * 0.08, 0.6),
+        }}
         className="clay group relative block overflow-hidden will-change-transform"
       >
         {url ? (

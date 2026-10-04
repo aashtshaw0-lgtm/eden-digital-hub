@@ -11,11 +11,21 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import { CartProvider } from "./context/CartProvider";
 import { SettingsProvider } from "./context/SettingsProvider";
-import { DynamicIsland } from "./components/eden/DynamicIsland";
-import { ChatWidget } from "./components/eden/ChatWidget";
 import { RequireAdmin } from "./components/eden/RequireAdmin";
-import { CookieConsent } from "./components/eden/CookieConsent";
 import "./index.css";
+
+// Global chrome mounts on every page but is only interacted with after first
+// paint, so it is split out of the critical bundle and rendered behind its own
+// Suspense boundary — a slow chunk can never delay the route content.
+const DynamicIsland = lazy(() =>
+  import("./components/eden/DynamicIsland").then((m) => ({ default: m.DynamicIsland })),
+);
+const ChatWidget = lazy(() =>
+  import("./components/eden/ChatWidget").then((m) => ({ default: m.ChatWidget })),
+);
+const CookieConsent = lazy(() =>
+  import("./components/eden/CookieConsent").then((m) => ({ default: m.CookieConsent })),
+);
 
 // Lazy load route components for better code splitting
 const Landing = lazy(() => import("./pages/Landing.tsx"));
@@ -57,11 +67,11 @@ function GlobalChrome() {
   return (
     <>
       {!onAuth && (
-        <>
+        <Suspense fallback={null}>
           <DynamicIsland />
           <ChatWidget />
           <CookieConsent />
-        </>
+        </Suspense>
       )}
     </>
   );
