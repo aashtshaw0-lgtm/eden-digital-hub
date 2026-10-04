@@ -7,6 +7,7 @@ import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { requireAdmin } from "./lib/rbac";
 import { enforceRateLimit } from "./lib/rateLimit";
+import { recordRedemption, resolveForOrder } from "./coupons";
 import {
   PREMIUM_THRESHOLD as PREMIUM_TIP_THRESHOLD,
   tierFor as tipTierFor,
@@ -209,6 +210,7 @@ export const createWithProof = mutation({
     txnId: v.optional(v.string()),
     declaredAmount: v.optional(v.number()),
     payerName: v.optional(v.string()),
+    couponCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -230,6 +232,20 @@ export const createWithProof = mutation({
     const storageId: Id<"_storage"> = args.storageId;
 
     const tip = Math.max(0, args.tipAmount ?? 0);
+
+    // The discount is derived here from the stored code, never taken from the
+    // client, so it cannot be inflated or replayed.
+    const subtotal = tier.basePrice + tip;
+    let couponApplied: { couponId: Id<"coupons">; discount: number; label: string } | null =
+      null;
+    if (args.couponCode && args.couponCode.trim() !== "") {
+      couponApplied = await resolveForOrder(ctx, {
+        code: args.couponCode,
+        userId,
+        subtotal,
+      });
+    }
+
     const now = Date.now();
     const orderId = await ctx.db.insert("orders", {
       clientId: userId,
@@ -241,7 +257,7 @@ export const createWithProof = mutation({
       clientName: args.clientName,
       clientEmail: args.clientEmail,
       clientWhatsapp: args.clientWhatsapp,
-      totalPrice: tier.basePrice + tip,
+      totalPrice: Math.max(0, subtotal - (couponApplied?.discount ?? 0)),
       status: "pending",
       createdAt: now,
       updatedAt: now,
@@ -256,6 +272,17 @@ export const createWithProof = mutation({
       payerName: args.payerName?.trim() || undefined,
       uploadedAt: now,
     });
+
+    // Recorded in the same transaction as the order so usage counts are exact
+    // and a coupon can never be spent on an order that was not created.
+    if (couponApplied) {
+      await recordRedemption(ctx, {
+        couponId: couponApplied.couponId,
+        userId,
+        discount: couponApplied.discount,
+        orderId,
+      });
+    }
 
     // A qualifying tip grants the credit straight away.
     if (tip > 0) {

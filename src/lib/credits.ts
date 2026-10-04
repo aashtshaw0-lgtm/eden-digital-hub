@@ -32,7 +32,17 @@ export function tierLabelFor(amount: number): CreditTierLabel {
 
 /** Presentation metadata (badge colours, glow, icon) for a contribution amount. */
 export function tierMeta(amount: number): TierMeta {
-  if (amount >= LEGENDARY_THRESHOLD) {
+  return tierMetaForTier(tierLabelFor(amount));
+}
+
+/**
+ * Presentation metadata for an already-resolved tier.
+ *
+ * The credits wall needs this because a marketing credit has no contribution
+ * behind it — the studio picks the tier it is displayed at.
+ */
+export function tierMetaForTier(tier: CreditTierLabel): TierMeta {
+  if (tier === "legendary") {
     return {
       label: "legendary",
       title: "Legendary",
@@ -42,7 +52,7 @@ export function tierMeta(amount: number): TierMeta {
       icon: Crown,
     };
   }
-  if (amount >= PREMIUM_THRESHOLD) {
+  if (tier === "premium") {
     return {
       label: "premium",
       title: "Premium",

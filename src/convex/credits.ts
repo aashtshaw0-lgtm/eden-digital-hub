@@ -29,7 +29,13 @@ export function influenceFor(amount: number): number {
   return amount + tierBonus;
 }
 
-/** Public credits wall, ordered by influence so the loudest names sit on top. */
+/**
+ * Public credits wall, ordered by influence so the loudest names sit on top.
+ *
+ * The rupee amount is deliberately omitted: the wall is a thank-you, not a
+ * ledger, and publishing what each person paid reads as billing them a second
+ * time. Tiers and ordering still use the real amount server-side.
+ */
 export const listAll = query({
   args: {},
   handler: async (ctx) => {
@@ -39,12 +45,38 @@ export const listAll = query({
         _id: credit._id,
         name: credit.name,
         greatness: credit.greatness,
-        amount: credit.amount ?? 0,
         tier: tierFor(credit.amount ?? 0),
         influence: influenceFor(credit.amount ?? 0),
+        kind: (credit.kind ?? "tip") as "tip" | "marketing",
         createdAt: credit.createdAt,
       }))
       .sort((a, b) => b.influence - a.influence || b.createdAt - a.createdAt);
+  },
+});
+
+/**
+ * Full ledger for the admin console, including amounts.
+ *
+ * Split from `listAll` so the public wall cannot accidentally start leaking
+ * what each person paid.
+ */
+export const listForAdmin = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const credits = await ctx.db.query("credits").collect();
+    return credits
+      .map((credit) => ({
+        _id: credit._id,
+        name: credit.name,
+        greatness: credit.greatness,
+        amount: credit.amount ?? 0,
+        tier: tierFor(credit.amount ?? 0),
+        kind: (credit.kind ?? "tip") as "tip" | "marketing",
+        autoGranted: credit.autoGranted ?? false,
+        createdAt: credit.createdAt,
+      }))
+      .sort((a, b) => b.createdAt - a.createdAt);
   },
 });
 
@@ -54,17 +86,35 @@ export const add = mutation({
     name: v.string(),
     greatness: v.optional(v.string()),
     amount: v.optional(v.number()),
+    kind: v.optional(v.union(v.literal("tip"), v.literal("marketing"))),
+    /** Tier to show for a marketing credit, which has no amount behind it. */
+    tier: v.optional(v.union(v.literal("standard"), v.literal("premium"), v.literal("legendary"))),
   },
-  handler: async (ctx, { name, greatness, amount }) => {
+  handler: async (ctx, { name, greatness, amount, kind, tier }) => {
     await requireAdmin(ctx);
     const trimmed = name.trim();
     if (!trimmed) throw new Error("A credit needs a name.");
+
+    const entryKind = kind ?? "tip";
+    if (entryKind === "marketing") {
+      // A marketing credit is a gesture, not a payment, so it carries no
+      // amount — the studio picks the tier it wants to display.
+      return await ctx.db.insert("credits", {
+        name: trimmed,
+        greatness: greatness?.trim() || undefined,
+        tier: tier ?? "standard",
+        kind: "marketing",
+        createdAt: Date.now(),
+      });
+    }
+
     const contribution = Math.max(0, amount ?? 0);
     return await ctx.db.insert("credits", {
       name: trimmed,
       greatness: greatness?.trim() || undefined,
       amount: contribution,
       tier: tierFor(contribution),
+      kind: "tip",
       createdAt: Date.now(),
     });
   },
@@ -77,18 +127,32 @@ export const update = mutation({
     name: v.optional(v.string()),
     greatness: v.optional(v.string()),
     amount: v.optional(v.number()),
+    kind: v.optional(v.union(v.literal("tip"), v.literal("marketing"))),
+    tier: v.optional(v.union(v.literal("standard"), v.literal("premium"), v.literal("legendary"))),
   },
-  handler: async (ctx, { creditId, name, greatness, amount }) => {
+  handler: async (ctx, { creditId, name, greatness, amount, kind, tier }) => {
     await requireAdmin(ctx);
     const credit = await ctx.db.get(creditId);
     if (!credit) throw new Error("Credit not found.");
-    const contribution = amount === undefined ? credit.amount ?? 0 : Math.max(0, amount);
-    await ctx.db.patch(creditId, {
+
+    const nextKind = kind ?? (credit.kind ?? "tip");
+    const patch: Record<string, unknown> = {
       name: name?.trim() || credit.name,
       greatness: greatness === undefined ? credit.greatness : greatness.trim() || undefined,
-      amount: contribution,
-      tier: tierFor(contribution),
-    });
+      kind: nextKind,
+    };
+
+    if (nextKind === "marketing") {
+      // Drop any stored amount so the entry can't leak a figure later.
+      patch.amount = undefined;
+      patch.tier = tier ?? credit.tier ?? "standard";
+    } else {
+      const contribution = amount === undefined ? credit.amount ?? 0 : Math.max(0, amount);
+      patch.amount = contribution;
+      patch.tier = tier ?? tierFor(contribution);
+    }
+
+    await ctx.db.patch(creditId, patch);
     return null;
   },
 });
@@ -134,7 +198,8 @@ export const grantFromTip = mutation({
           ? "Legendary supporter — carried the studio."
           : "Premium supporter — tipped above the tier line.",
       amount: tipAmount,
-      tier,
+      tier: tier as string,
+      kind: "tip" as const,
       sourceOrderId: orderId,
       autoGranted: true,
     };

@@ -77,7 +77,7 @@ function Chooser({
           <Sparkles className="size-5" />
         </span>
         <span>
-          <span className="block text-sm font-semibold">Talk with AI (Instant)</span>
+          <span className="block text-sm font-semibold">Eden Assistant (Instant)</span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
             Pricing, tiers and turnaround — answered in seconds.
           </span>
@@ -143,7 +143,7 @@ function AiChat({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <ChatShell title="Eden Assistant" subtitle="AI · instant answers" onBack={onBack} scrollRef={scrollRef}>
+    <ChatShell title="Eden Assistant" subtitle="Instant · always on" onBack={onBack} scrollRef={scrollRef}>
       {messages.map((m, i) => (
         <Bubble key={i} fromAi={m.role === "model"} text={m.text} />
       ))}
@@ -172,15 +172,22 @@ function ManagerChat({ onBack }: { onBack: () => void }) {
   const startSession = useMutation(api.chat.startSession);
   const sendMessage = useMutation(api.chat.sendMessage);
   const [input, setInput] = useState("");
-  const [starting, setStarting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Guards against firing the mutation twice while the first is in flight.
+  // A ref (not state) because this is not rendered.
+  const startingRef = useRef(false);
+
+  // "Starting" is derived from the session not existing yet, so no state has
+  // to be set from inside the effect.
+  const hasSession = session !== null;
 
   useEffect(() => {
-    if (isAuthenticated && session === null && !starting) {
-      setStarting(true);
-      startSession().finally(() => setStarting(false));
-    }
-  }, [isAuthenticated, session, starting, startSession]);
+    if (!isAuthenticated || hasSession || startingRef.current) return;
+    startingRef.current = true;
+    void startSession().finally(() => {
+      startingRef.current = false;
+    });
+  }, [isAuthenticated, hasSession, startSession]);
 
   const messages = useQuery(
     api.chat.getMessages,

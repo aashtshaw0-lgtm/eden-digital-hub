@@ -223,6 +223,42 @@
 }
 
 /*
+ * Smoother page motion.
+ *
+ * Anchors (the "See our work" jump, back-to-top) glide instead of snapping,
+ * and the whole document gets a compositor hint so scrolling stays on the GPU
+ * thread. Both are reverted by the reduced-motion block below.
+ */
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+/*
+ * Depth for the portfolio tiles. The card itself sets `transform-style:
+ * preserve-3d` inline; this keeps the wrapper's perspective stable so the
+ * child can rotate without the browser flattening it.
+ */
+.depth-3d {
+  perspective: 1100px;
+  perspective-origin: center;
+}
+
+/*
+ * A subtle press target for every tappable surface. Kept separate from
+ * `clay-press` (which is for cards that lift) so buttons can opt in without
+ * also gaining a hover shadow.
+ */
+.tap {
+  transition:
+    transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.16s ease;
+}
+.tap:active {
+  transform: scale(0.97);
+}
+
+/*
  * Respect visitors who ask for less motion.
  *
  * The credits wall, ledger and checkout tip lean on staggered Framer Motion
@@ -237,5 +273,6 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+    transform: none !important;
   }
 }

@@ -3,6 +3,8 @@ import { inr } from "@/lib/format";
 import { useSeo } from "@/lib/seo";
 import { useSettings } from "@/context/SettingsProvider";
 import { serviceIcon } from "@/components/eden/serviceIcons";
+import { Portfolio3D } from "@/components/eden/Portfolio3D";
+import { Reveal } from "@/components/eden/Reveal";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -81,8 +83,8 @@ export default function Landing() {
           className="mt-5 max-w-xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg"
         >
           One studio for logos, posters, thumbnails, banners and full event or
-          social execution — with three honest tiers on every service and a
-          human (or a very good AI) one click away.
+          social execution — every piece drawn by hand, with three honest tiers
+          on each service and a real person one click away.
         </motion.p>
 
         <motion.div
@@ -128,42 +130,23 @@ export default function Landing() {
       {/* ── Portfolio masonry ────────────────────────────── */}
       <section id="portfolio" className="mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
         <div className="mb-8 flex items-end justify-between gap-4">
-          <div>
+          <Reveal>
             <h2 className="font-display text-2xl font-semibold sm:text-3xl">Selected work</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              A few pieces that left the studio recently.
+              A few pieces that left the studio recently — drawn by hand, one brief at a time.
             </p>
-          </div>
+          </Reveal>
         </div>
 
         <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 [&>*]:mb-4">
-          {(portfolio ?? []).map((item, i) => (
-            <motion.figure
-              key={item._id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-40px" }}
-              transition={{ delay: (i % 3) * 0.06 }}
-              className="clay group relative break-inside-avoid overflow-hidden"
-            >
-              {item.url && !broken.has(item._id) ? (
-                <img
-                  src={item.url}
-                  alt={item.title}
-                  loading="lazy"
-                  decoding="async"
-                  onError={() => setBroken((prev) => new Set(prev).add(item._id))}
-                  className="w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-                />
-              ) : (
-                <div className="clay-inset flex aspect-[4/3] items-center justify-center rounded-none border-0">
-                  <span className="font-display text-lg text-muted-foreground">{item.title}</span>
-                </div>
-              )}
-              <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-2 bg-gradient-to-t from-black/70 to-transparent p-4 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-                <span className="text-sm font-medium text-white">{item.title}</span>
-              </figcaption>
-            </motion.figure>
+          {(portfolio ?? []).map((item) => (
+            <div key={item._id} className="mb-4 break-inside-avoid">
+              <Portfolio3D
+                url={broken.has(item._id) ? undefined : item.url}
+                title={item.title}
+                onBroken={() => setBroken((prev) => new Set(prev).add(item._id))}
+              />
+            </div>
           ))}
         </div>
       </section>
@@ -171,8 +154,10 @@ export default function Landing() {
       {/* ── Services teaser ──────────────────────────────── */}
       <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
         <div className="mb-8 text-center">
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">Everything we make & manage</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Pick a service, pick a tier, brief us in one form.</p>
+          <Reveal>
+            <h2 className="font-display text-2xl font-semibold sm:text-3xl">Everything we make & manage</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Pick a service, pick a tier, brief us in one form.</p>
+          </Reveal>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {featured.map((s, i) => {

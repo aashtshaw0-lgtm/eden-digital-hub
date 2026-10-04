@@ -1,11 +1,11 @@
 import { api } from "@/convex/_generated/api";
-import { LEGENDARY_THRESHOLD, PREMIUM_THRESHOLD, tierMeta } from "@/lib/credits";
+import { LEGENDARY_THRESHOLD, PREMIUM_THRESHOLD, tierMeta, tierMetaForTier } from "@/lib/credits";
 import { inr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSeo } from "@/lib/seo";
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { Megaphone, Sparkles } from "lucide-react";
 import { Link } from "react-router";
 
 export default function Credits() {
@@ -22,9 +22,10 @@ export default function Credits() {
           Credits
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          Every name here tipped above the line. Tips of {inr(PREMIUM_THRESHOLD)} and above earn a
-          premium credit; {inr(LEGENDARY_THRESHOLD)} and above earns legendary — and the bigger the
-          contribution, the higher the name sits.
+          The studio runs on the people who back it. Tips of {inr(PREMIUM_THRESHOLD)} and above
+          earn a premium credit, {inr(LEGENDARY_THRESHOLD)} and above earns legendary — and the
+          bigger the contribution, the higher the name sits. Some names here are goodwill credits
+          we owe our thanks to rather than payments.
         </p>
       </header>
 
@@ -83,7 +84,10 @@ export default function Credits() {
       ) : (
         <ul className="mt-12 space-y-4">
           {credits.map((credit, index) => {
-            const tier = tierMeta(credit.amount);
+            // Marketing credits carry no contribution, so the tier the studio chose is
+            // used directly rather than derived from an amount.
+            const isMarketing = credit.kind === "marketing";
+            const tier = tierMetaForTier(credit.tier);
             const Icon = tier.icon;
             return (
               <motion.li
@@ -140,14 +144,9 @@ export default function Credits() {
                       tier.chip,
                     )}
                   >
-                    <Icon className="size-3.5" />
-                    {tier.title}
+                    {isMarketing ? <Megaphone className="size-3.5" /> : <Icon className="size-3.5" />}
+                    {isMarketing ? "Marketing credit" : tier.title}
                   </span>
-                  {credit.amount > 0 && (
-                    <span className="text-sm font-medium tabular-nums text-muted-foreground">
-                      {inr(credit.amount)}
-                    </span>
-                  )}
                 </div>
               </motion.li>
             );

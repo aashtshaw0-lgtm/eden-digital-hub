@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BadgeCheck,
-  Bot,
+  Receipt,
   CircleAlert,
   Gauge,
   HandCoins,
@@ -55,7 +55,7 @@ type Order = Doc<"orders"> & {
  *
  * `known` is false when nothing has been read yet, which is a different state
  * from "the client paid nothing" — collapsing the two is what made a receipt
- * the AI had not read show up as short by the entire order total.
+ * the studio had not read show up as short by the entire order total.
  */
 function paymentState(order: Order) {
   const paidAmount = order.paidAmount ?? null;
@@ -104,18 +104,18 @@ export function AdminOrders() {
     }
   };
 
-  /** Queues the AI proof review; the board updates when the review row lands. */
+  /** Queues the receipt verification; the board updates when the review row lands. */
   const runAiReview = async (proofId: Id<"paymentProofs">) => {
     setReviewing(proofId);
     try {
       const result = await reviewProof({ proofId });
       toast.success(
         result.queued
-          ? "AI review queued — the row updates in a few seconds"
+          ? "Verifying the receipt — this row updates in a few seconds"
           : "This proof was already reviewed",
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "AI review failed");
+      toast.error(e instanceof Error ? e.message : "Verify receipt failed");
     } finally {
       setReviewing(null);
     }
@@ -166,7 +166,7 @@ export function AdminOrders() {
       if (!res.ok) throw new Error("Upload failed — try again.");
       const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
       await attachProof({ orderId: order._id, storageId });
-      toast.success("Proof attached — run the AI review next.");
+      toast.success("Proof attached — run the verification next.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
@@ -230,7 +230,7 @@ export function AdminOrders() {
 
       {/* Counts */}
       <div className="mb-5 grid gap-3 sm:grid-cols-3">
-        <StatCard label="Total orders" value={String(orders.length)} icon={Bot} />
+        <StatCard label="Total orders" value={String(orders.length)} icon={Receipt} />
         <StatCard
           label="Paid"
           value={String(paidCount)}
@@ -338,7 +338,7 @@ export function AdminOrders() {
                   />
                 </td>
 
-                {/* AI alerts */}
+                {/* alerts */}
                 <td className="px-5 py-3.5">
                   <AlertBadges order={o} />
                 </td>
@@ -490,7 +490,7 @@ function StatCard({
 }: {
   label: string;
   value: string;
-  icon: typeof Bot;
+  icon: typeof Receipt;
   tone?: "paid" | "unpaid";
 }) {
   return (
@@ -574,7 +574,7 @@ function PaidCell({
           className="clay-sm inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary hover:underline"
         >
           {reviewing ? <Loader2 className="size-3 animate-spin" /> : <ScanLine className="size-3" />}
-          AI review
+          Verify receipt
         </button>
       )}
 
@@ -622,7 +622,7 @@ function AlertBadges({ order }: { order: Order }) {
             title="No amount has been read from this receipt yet."
           >
             <ScanLine className="size-3" />
-            {review?.readFailed ? "AI read failed" : "Amount not read"}
+            {review?.readFailed ? "Could not read" : "Amount not read"}
           </motion.span>
         )}
         {short && shortBy !== null && (
@@ -842,14 +842,14 @@ function ReviewPanel({ order }: { order: Order }) {
           <p className="text-sm">{review.summary}</p>
           {review.paidAmount != null && (
             <p className="text-xs text-muted-foreground">
-              AI read <span className="font-semibold">{inr(review.paidAmount)}</span> against an
+              Studio read <span className="font-semibold">{inr(review.paidAmount)}</span> against an
               expected <span className="font-semibold">{inr(review.expectedAmount ?? order.totalPrice)}</span>
               {review.tipAmount ? ` · tip ${inr(review.tipAmount)}` : ""}
             </p>
           )}
           {review.readFailed && (
             <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
-              The AI could not read this receipt. Run “AI review” again, or read the amount
+              We could not read this receipt. Run “Verify receipt” again, or read the amount
               yourself from the screenshot — it has not been treated as unpaid.
             </p>
           )}
@@ -876,7 +876,7 @@ function ReviewPanel({ order }: { order: Order }) {
         </>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Proof attached — use “AI review” to read it.
+          Proof attached — use “Verify receipt” to read it.
         </p>
       )}
     </div>

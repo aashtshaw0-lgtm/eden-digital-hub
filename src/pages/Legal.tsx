@@ -122,7 +122,7 @@ function Privacy() {
             "Order briefs — the intake answers (project details, links, references) you submit with an order.",
             "Contact details — the WhatsApp number you give us so we can reach you about the work.",
             "Reference files — anything you upload for a designer to look at.",
-            "Chat messages — your conversations with our AI assistant and live managers.",
+            "Chat messages — your conversations with our studio assistant and live managers.",
             "Basic technical records — sign-in timestamps and order history kept for accounting.",
           ]}
         />

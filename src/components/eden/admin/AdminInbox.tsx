@@ -8,11 +8,18 @@ import type { Id } from "@/convex/_generated/dataModel";
 
 export function AdminInbox() {
   const sessions = useQuery(api.chat.listSessions);
-  const [activeId, setActiveId] = useState<Id<"chatSessions"> | null>(null);
+  const [pickedId, setPickedId] = useState<Id<"chatSessions"> | null>(null);
   const sendMessage = useMutation(api.chat.sendMessage);
   const setSessionStatus = useMutation(api.chat.setSessionStatus);
   const [reply, setReply] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // The default selection is derived, not stored: storing it would need an
+  // effect that writes state on every session list change. Only an explicit
+  // click is remembered.
+  const fallbackId =
+    sessions?.find((s) => s.status === "active")?._id ?? sessions?.[0]?._id ?? null;
+  const activeId = pickedId && sessions?.some((s) => s._id === pickedId) ? pickedId : fallbackId;
 
   const active = sessions?.find((s) => s._id === activeId) ?? null;
   const messages = useQuery(
@@ -23,12 +30,6 @@ export function AdminInbox() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages?.length, activeId]);
-
-  useEffect(() => {
-    if (!sessions || sessions.length === 0 || activeId) return;
-    const firstActive = sessions.find((s) => s.status === "active") ?? sessions[0];
-    setActiveId(firstActive._id);
-  }, [sessions, activeId]);
 
   const sorted = [...(sessions ?? [])].sort(
     (a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0),
@@ -55,7 +56,7 @@ export function AdminInbox() {
           sorted.map((s) => (
             <button
               key={s._id}
-              onClick={() => setActiveId(s._id)}
+              onClick={() => setPickedId(s._id)}
               className={cn(
                 "mb-1.5 block w-full rounded-xl px-3.5 py-3 text-left transition-colors",
                 s._id === activeId ? "bg-primary/10 ring-1 ring-primary/40" : "hover:bg-secondary/50",

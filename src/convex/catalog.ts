@@ -31,7 +31,7 @@ const SEED_SERVICES = [
     sortOrder: 1,
     tiers: [
       { name: "Basic", basePrice: 1499, sortOrder: 1, deliverables: ["1 logo concept", "PNG + JPG exports", "2 revision rounds", "3-day delivery"] },
-      { name: "Pro", basePrice: 3999, sortOrder: 2, deliverables: ["3 logo concepts", "Vector source files (AI/SVG)", "Colour + mono variants", "5 revision rounds", "5-day delivery"] },
+      { name: "Pro", basePrice: 3999, sortOrder: 2, deliverables: ["3 logo concepts", "Vector source files (SVG)", "Colour + mono variants", "5 revision rounds", "5-day delivery"] },
       { name: "Premium", basePrice: 7999, sortOrder: 3, deliverables: ["Unlimited concepts until it clicks", "Full brand mark suite", "Mini brand sheet (fonts & colours)", "Social avatar pack", "Priority delivery"] },
     ],
   },

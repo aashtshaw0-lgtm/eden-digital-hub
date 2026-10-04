@@ -18,17 +18,27 @@ function slice(src: string, startMarker: string, endMarker: string): string {
   return src.slice(start, end).trimEnd();
 }
 
-/** Strips the TypeScript types so the extracted code can be evaluated as-is. */
+/**
+ * Strips the TypeScript types so the extracted code can be evaluated as-is.
+ * `export` is removed too — these are loaded into a function body, not a module.
+ */
 function compile(fnSource: string): string {
-  return transformSync(fnSource, { loader: "ts" }).code;
+  return transformSync(fnSource, { loader: "ts" }).code.replace(/^export /gm, "");
 }
 
 const toAmountSrc = slice(orders, "function toAmount(", "async function analyzeWithGemini(");
 const resolveSrc = slice(orders, "function resolvePaidAmount(", "/**\n * Coerces whatever");
+const coupons = readFileSync("src/convex/coupons.ts", "utf8");
+// Starts at the constants so MAX_DISCOUNT_RATIO travels with the functions.
+const couponSrc = slice(coupons, "/** A coupon never takes an order below zero.", "/** Human label");
 const stateSrc = slice(admin, "function paymentState(", "const STATUS_STYLES");
 
 const { toAmount, resolvePaidAmount } = new Function(
   `${compile(toAmountSrc)}\n${compile(resolveSrc)}\nreturn { toAmount, resolvePaidAmount };`,
+)();
+
+const { normalizeCode, discountFor } = new Function(
+  `${compile(couponSrc)}\nreturn { normalizeCode, discountFor };`,
 )();
 
 const compiledState = compile(stateSrc);
@@ -100,6 +110,18 @@ check("nothing read -> NOT short, unverified", [s2.short, s2.paid, s2.known], [f
 
 const s3 = paymentState({ ...order, status: "approved", paidAmount: null, shortBy: null, paidSource: "unknown" });
 check("approved order -> paid regardless", [s3.short, s3.paid], [false, true]);
+
+console.log("\n--- coupons: code normalisation ---");
+check('" eden20 " -> "EDEN20"', normalizeCode(" eden20 "), "EDEN20");
+check('"Eden 20" -> "EDEN20"', normalizeCode("Eden 20"), "EDEN20");
+
+console.log("\n--- coupons: discount pricing ---");
+check("flat 500 off a 1,999 order", discountFor({ kind: "flat", value: 500 }, 1999), 500);
+check("10% off a 1,999 order", discountFor({ kind: "percent", value: 10 }, 1999), 200);
+check("10% off 55", discountFor({ kind: "percent", value: 10 }, 55), 6);
+check("flat 5,000 capped at the order total", discountFor({ kind: "flat", value: 5000 }, 1999), 1999);
+check("never negative", discountFor({ kind: "flat", value: 100 }, 0), 0);
+check("percent of zero is zero", discountFor({ kind: "percent", value: 50 }, 0), 0);
 
 console.log(`\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

@@ -155,14 +155,14 @@ const schema = defineSchema(
       utr: v.optional(v.string()),
       /** App-level transaction ID shown in the payment app's detail view. */
       txnId: v.optional(v.string()),
-      /** Amount the client claims they paid. Read from the screenshot by AI. */
+      /** Amount the client claims they paid. Read from the screenshot by the studio. */
       declaredAmount: v.optional(v.number()),
-      /** Name of the person who made the payment. Read from the screenshot by AI. */
+      /** Name of the person who made the payment. Read from the screenshot by the studio. */
       payerName: v.optional(v.string()),
       uploadedAt: v.number(),
     }).index("by_order", ["orderId"]),
 
-    // AI review of a payment proof: what is still missing + risk signals
+    // Studio review of a payment proof: what is still missing + risk signals
     paymentReviews: defineTable({
       proofId: v.id("paymentProofs"),
       summary: v.optional(v.string()),
@@ -185,10 +185,19 @@ const schema = defineSchema(
       name: v.string(),
       /** Short "greatness" line shown on the credits page, e.g. "Legendary support". */
       greatness: v.optional(v.string()),
-      /** Optional numeric contribution used for the greatness tier gate. */
+      /**
+       * Contribution behind the tier gate. Never shown publicly — the credits
+       * wall is about recognition, not receipts. Absent for marketing credits.
+       */
       amount: v.optional(v.number()),
       /** Derived tier: "standard" (<100), "premium" (>=100), "legendary" (>=500). */
       tier: v.optional(v.string()),
+      /**
+       * "tip" for a real contribution, "marketing" for a goodwill credit the
+       * studio gives out (sponsors, press, partners). Marketing entries carry
+       * no amount and are labelled differently on the wall.
+       */
+      kind: v.optional(v.union(v.literal("tip"), v.literal("marketing"))),
       /** Order that earned this credit automatically, when tip-driven. */
       sourceOrderId: v.optional(v.id("orders")),
       /** True when the credit was created from a tip rather than by hand. */
@@ -198,6 +207,44 @@ const schema = defineSchema(
       .index("by_name", ["name"])
       .index("by_created", ["createdAt"])
       .index("by_source_order", ["sourceOrderId"]),
+
+    // discount coupons — admin-issued, optionally restricted to named people
+    coupons: defineTable({
+      /** Uppercase code typed at checkout, e.g. "EDEN20". */
+      code: v.string(),
+      /** "flat" subtracts `value` rupees; "percent" takes `value`% off. */
+      kind: v.union(v.literal("flat"), v.literal("percent")),
+      /** Rupees for "flat", percentage 1-100 for "percent". */
+      value: v.number(),
+      /** Internal note, e.g. "launch week". Never shown to clients. */
+      note: v.optional(v.string()),
+      /** Total times this coupon may be used. Undefined means unlimited. */
+      maxUses: v.optional(v.number()),
+      /** Times a single client may use it. Undefined means once. */
+      maxPerClient: v.optional(v.number()),
+      /** When set, only these email addresses may redeem it. */
+      allowedEmails: v.optional(v.array(v.string())),
+      /** Set false to pause a coupon without deleting its history. */
+      active: v.optional(v.boolean()),
+      /** Epoch ms after which the coupon stops working. */
+      expiresAt: v.optional(v.number()),
+      createdAt: v.number(),
+    })
+      .index("by_code", ["code"])
+      .index("by_created", ["createdAt"]),
+
+    // one row per redemption, so usage counts and per-client limits are exact
+    couponRedemptions: defineTable({
+      couponId: v.id("coupons"),
+      userId: v.id("users"),
+      /** Discount actually applied, in rupees, after the cap. */
+      discount: v.number(),
+      /** Order it was applied to, when known. */
+      orderId: v.optional(v.id("orders")),
+      createdAt: v.number(),
+    })
+      .index("by_coupon", ["couponId"])
+      .index("by_coupon_user", ["couponId", "userId"]),
   },
   {
     schemaValidation: false,

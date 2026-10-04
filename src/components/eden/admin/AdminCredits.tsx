@@ -1,28 +1,37 @@
 import { api } from "@/convex/_generated/api";
-import { LEGENDARY_THRESHOLD, PREMIUM_THRESHOLD, tierMeta } from "@/lib/credits";
+import { LEGENDARY_THRESHOLD as LEGENDARY, PREMIUM_THRESHOLD as PREMIUM, tierMetaForTier } from "@/lib/credits";
 import { inr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { HandCoins, Loader2, Megaphone, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
 
+type CreditKind = "tip" | "marketing";
+type Tier = "standard" | "premium" | "legendary";
+
+const TIERS: Tier[] = ["standard", "premium", "legendary"];
+
 export function AdminCredits() {
-  const credits = useQuery(api.credits.listAll);
+  const credits = useQuery(api.credits.listForAdmin);
   const addCredit = useMutation(api.credits.add);
   const updateCredit = useMutation(api.credits.update);
   const removeCredit = useMutation(api.credits.remove);
 
+  const [kind, setKind] = useState<CreditKind>("tip");
   const [name, setName] = useState("");
   const [greatness, setGreatness] = useState("");
   const [amount, setAmount] = useState("0");
+  const [marketingTier, setMarketingTier] = useState<Tier>("premium");
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<Id<"credits"> | null>(null);
 
   const numericAmount = Math.max(0, Number(amount) || 0);
-  const previewTier = tierMeta(numericAmount);
+  const previewTier = tierMetaForTier(
+    numericAmount >= LEGENDARY ? "legendary" : numericAmount >= PREMIUM ? "premium" : "standard",
+  );
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +44,10 @@ export function AdminCredits() {
       await addCredit({
         name,
         greatness: greatness || undefined,
-        amount: numericAmount,
+        // Marketing credits carry no amount, so none is sent.
+        amount: kind === "tip" ? numericAmount : undefined,
+        kind,
+        tier: kind === "marketing" ? marketingTier : undefined,
       });
       toast.success(`Added ${name.trim()} to the ledger`);
       setName("");
@@ -50,10 +62,17 @@ export function AdminCredits() {
 
   const saveEdit = async (
     creditId: Id<"credits">,
-    next: { name: string; greatness: string; amount: number },
+    next: { name: string; greatness: string; amount: number; kind: CreditKind; tier?: Tier },
   ) => {
     try {
-      await updateCredit({ creditId, ...next });
+      await updateCredit({
+        creditId,
+        name: next.name,
+        greatness: next.greatness,
+        amount: next.kind === "tip" ? next.amount : undefined,
+        kind: next.kind,
+        tier: next.kind === "marketing" ? (next.tier ?? "standard") : undefined,
+      });
       toast.success("Credit updated");
       setEditing(null);
     } catch (err) {
@@ -72,7 +91,6 @@ export function AdminCredits() {
 
   return (
     <div className="space-y-6">
-      {/* Add form */}
       <motion.form
         onSubmit={(e) => void submit(e)}
         initial={{ opacity: 0, y: 12 }}
@@ -83,9 +101,34 @@ export function AdminCredits() {
         <div>
           <h2 className="font-display text-lg font-semibold">Add a name to the credits</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            A tip above {inr(PREMIUM_THRESHOLD)} becomes a premium credit, {inr(LEGENDARY_THRESHOLD)}
-            and above becomes legendary — bigger influence sorts higher automatically.
+            Clients who tip land here automatically. Add a goodwill credit for a sponsor, partner
+            or press mention — it shows on the wall with no amount attached.
           </p>
+        </div>
+
+        {/* Tip vs marketing */}
+        <div className="flex gap-2">
+          {(
+            [
+              { key: "tip" as const, label: "Tip / contribution", icon: HandCoins },
+              { key: "marketing" as const, label: "Marketing credit", icon: Megaphone },
+            ]
+          ).map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              onClick={() => setKind(option.key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition",
+                kind === option.key
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "clay-sm text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <option.icon className="size-3.5" />
+              {option.label}
+            </button>
+          ))}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -93,7 +136,7 @@ export function AdminCredits() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Client or supporter name"
+              placeholder={kind === "tip" ? "Client or supporter name" : "Sponsor, partner or press"}
               className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
             />
           </Field>
@@ -108,29 +151,51 @@ export function AdminCredits() {
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="Amount (drives the tier)">
-            <input
-              type="number"
-              min={0}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="clay-inset w-40 rounded-xl px-3.5 py-2.5 text-sm tabular-nums outline-none focus:ring-2 focus:ring-primary/40"
-            />
-          </Field>
+          {kind === "tip" ? (
+            <>
+              <Field label="Amount (drives the tier)">
+                <input
+                  type="number"
+                  min={0}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="clay-inset w-40 rounded-xl px-3.5 py-2.5 text-sm tabular-nums outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </Field>
 
-          <motion.span
-            key={previewTier.label}
-            initial={{ scale: 0.9, opacity: 0.5 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 400, damping: 20 }}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold",
-              previewTier.chip,
-            )}
-          >
-            <previewTier.icon className="size-3" />
-            {previewTier.title}
-          </motion.span>
+              <motion.span
+                key={previewTier.label}
+                initial={{ scale: 0.9, opacity: 0.5 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold",
+                  previewTier.chip,
+                )}
+              >
+                <previewTier.icon className="size-3" />
+                {previewTier.title}
+              </motion.span>
+            </>
+          ) : (
+            <Field label="Display tier (public only)">
+              <div className="flex gap-1.5">
+                {TIERS.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setMarketingTier(t)}
+                    className={cn(
+                      "rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition",
+                      marketingTier === t ? tierMetaForTier(t).chip : "clay-sm text-muted-foreground",
+                    )}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          )}
 
           <button
             type="submit"
@@ -143,7 +208,6 @@ export function AdminCredits() {
         </div>
       </motion.form>
 
-      {/* Ledger */}
       {credits === undefined ? (
         <div className="clay h-40 animate-pulse opacity-60" />
       ) : credits.length === 0 ? (
@@ -153,64 +217,82 @@ export function AdminCredits() {
       ) : (
         <ul className="space-y-2.5">
           <AnimatePresence initial={false}>
-            {credits.map((credit, index) => (
-              <motion.li
-                key={credit._id}
-                layout
-                initial={{ opacity: 0, y: 18, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.18 } }}
-                transition={{ type: "spring", stiffness: 260, damping: 26, delay: index * 0.03 }}
-                className={cn(
-                  "clay flex flex-wrap items-center gap-3 p-4 ring-1",
-                  tierMeta(credit.amount).ring,
-                )}
-              >
-                <span className="font-display w-7 text-sm font-semibold tabular-nums text-muted-foreground">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
+            {credits.map((credit, index) => {
+              const isMarketing = credit.kind === "marketing";
+              return (
+                <motion.li
+                  key={credit._id}
+                  layout
+                  initial={{ opacity: 0, y: 18, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.18 } }}
+                  transition={{ type: "spring", stiffness: 260, damping: 26, delay: index * 0.03 }}
+                  className={cn(
+                    "clay flex flex-wrap items-center gap-3 p-4 ring-1",
+                    tierMetaForTier(credit.tier).ring,
+                  )}
+                >
+                  <span className="font-display w-7 text-sm font-semibold tabular-nums text-muted-foreground">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
 
-                {editing === credit._id ? (
-                  <EditRow
-                    credit={credit}
-                    onSave={(next) => void saveEdit(credit._id, next)}
-                    onCancel={() => setEditing(null)}
-                  />
-                ) : (
-                  <>
-                    <div className="min-w-[160px] flex-1">
-                      <p className="font-display text-base font-semibold">{credit.name}</p>
-                      {credit.greatness && (
-                        <p className="mt-0.5 text-xs text-muted-foreground">{credit.greatness}</p>
+                  {editing === credit._id ? (
+                    <EditRow
+                      credit={credit}
+                      onSave={(next) => void saveEdit(credit._id, next)}
+                      onCancel={() => setEditing(null)}
+                    />
+                  ) : (
+                    <>
+                      <div className="min-w-[160px] flex-1">
+                        <p className="font-display flex items-center gap-1.5 text-base font-semibold">
+                          {credit.name}
+                          {isMarketing && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-secondary-foreground">
+                              <Megaphone className="size-2.5" /> Marketing
+                            </span>
+                          )}
+                          {credit.autoGranted && (
+                            <span className="rounded-full bg-primary/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                              Auto
+                            </span>
+                          )}
+                        </p>
+                        {credit.greatness && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">{credit.greatness}</p>
+                        )}
+                      </div>
+
+                      {/* The amount is internal — the public wall never shows it. */}
+                      {!isMarketing && (
+                        <span className="text-sm font-medium tabular-nums text-muted-foreground">
+                          {inr(credit.amount)}
+                        </span>
                       )}
-                    </div>
 
-                    <span className="text-sm font-medium tabular-nums text-muted-foreground">
-                      {inr(credit.amount)}
-                    </span>
+                      <TierChip tier={credit.tier} isMarketing={isMarketing} />
 
-                    <TierChip amount={credit.amount} />
-
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setEditing(credit._id)}
-                        className="clay-sm flex size-8 items-center justify-center text-muted-foreground hover:text-primary"
-                        aria-label={`Edit ${credit.name}`}
-                      >
-                        <Pencil className="size-3.5" />
-                      </button>
-                      <button
-                        onClick={() => void drop(credit._id)}
-                        className="clay-sm flex size-8 items-center justify-center text-muted-foreground hover:text-destructive"
-                        aria-label={`Remove ${credit.name}`}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </div>
-                  </>
-                )}
-              </motion.li>
-            ))}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setEditing(credit._id)}
+                          className="clay-sm flex size-8 items-center justify-center text-muted-foreground hover:text-primary"
+                          aria-label={`Edit ${credit.name}`}
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <button
+                          onClick={() => void drop(credit._id)}
+                          className="clay-sm flex size-8 items-center justify-center text-muted-foreground hover:text-destructive"
+                          aria-label={`Remove ${credit.name}`}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </motion.li>
+              );
+            })}
           </AnimatePresence>
         </ul>
       )}
@@ -229,17 +311,25 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function TierChip({ amount }: { amount: number }) {
-  const tier = tierMeta(amount);
+function TierChip({ tier, isMarketing }: { tier: string; isMarketing: boolean }) {
+  const meta = tierMetaForTier(tier as Tier);
+  if (isMarketing) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-secondary-foreground">
+        <Megaphone className="size-3" />
+        Marketing credit
+      </span>
+    );
+  }
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
-        tier.chip,
+        meta.chip,
       )}
     >
-      <tier.icon className="size-3" />
-      {tier.title}
+      <meta.icon className="size-3" />
+      {meta.title}
     </span>
   );
 }
@@ -249,13 +339,21 @@ function EditRow({
   onSave,
   onCancel,
 }: {
-  credit: { name: string; greatness?: string; amount: number };
-  onSave: (next: { name: string; greatness: string; amount: number }) => void;
+  credit: { name: string; greatness?: string; amount: number; kind: "tip" | "marketing"; tier: string };
+  onSave: (next: {
+    name: string;
+    greatness: string;
+    amount: number;
+    kind: CreditKind;
+    tier?: Tier;
+  }) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(credit.name);
   const [greatness, setGreatness] = useState(credit.greatness ?? "");
   const [amount, setAmount] = useState(String(credit.amount));
+  const [kind, setKind] = useState<CreditKind>(credit.kind);
+  const [tier, setTier] = useState<Tier>((credit.tier as Tier) ?? "standard");
 
   return (
     <div className="flex w-full flex-wrap items-end gap-2">
@@ -270,16 +368,41 @@ function EditRow({
         placeholder="Greatness"
         className="clay-inset w-56 rounded-xl px-3 py-2 text-sm outline-none"
       />
-      <input
-        type="number"
-        min={0}
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-        className="clay-inset w-28 rounded-xl px-3 py-2 text-sm tabular-nums outline-none"
-      />
+
+      <select
+        value={kind}
+        onChange={(e) => setKind(e.target.value as CreditKind)}
+        className="clay-inset rounded-xl px-3 py-2 text-sm outline-none"
+      >
+        <option value="tip">Tip</option>
+        <option value="marketing">Marketing</option>
+      </select>
+
+      {kind === "tip" ? (
+        <input
+          type="number"
+          min={0}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="clay-inset w-28 rounded-xl px-3 py-2 text-sm tabular-nums outline-none"
+        />
+      ) : (
+        <select
+          value={tier}
+          onChange={(e) => setTier(e.target.value as Tier)}
+          className="clay-inset rounded-xl px-3 py-2 text-sm capitalize outline-none"
+        >
+          {TIERS.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      )}
+
       <button
         onClick={() =>
-          onSave({ name, greatness, amount: Math.max(0, Number(amount) || 0) })
+          onSave({ name, greatness, amount: Math.max(0, Number(amount) || 0), kind, tier })
         }
         className="inline-flex items-center gap-1 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground"
       >

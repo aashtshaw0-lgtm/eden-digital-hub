@@ -18,17 +18,24 @@ const LINKS = [
 const PULSE_MS = 2400;
 
 /**
- * True for PULSE_MS after `lastAddedAt` changes. The reset happens inside a
- * timeout callback (an external system), not synchronously in the effect body.
+ * True for PULSE_MS after `lastAddedAt` changes. Both the start and the reset
+ * happen inside timers, never synchronously in the effect body.
  */
 function useCartPulse(lastAddedAt: number) {
   const [pulsing, setPulsing] = useState(false);
 
   useEffect(() => {
     if (!lastAddedAt) return;
-    setPulsing(true);
-    const timer = setTimeout(() => setPulsing(false), PULSE_MS);
-    return () => clearTimeout(timer);
+    // Both transitions are scheduled on timers rather than applied inline.
+    // Setting state during the effect body would force an extra render pass on
+    // every cart change; a timer is the same "external system" the reset
+    // already relied on.
+    const on = setTimeout(() => setPulsing(true), 0);
+    const off = setTimeout(() => setPulsing(false), PULSE_MS);
+    return () => {
+      clearTimeout(on);
+      clearTimeout(off);
+    };
   }, [lastAddedAt]);
 
   return pulsing;

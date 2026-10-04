@@ -1,6 +1,7 @@
 import { useCart } from "@/context/CartProvider";
 import { useSettings } from "@/context/SettingsProvider";
 import { api } from "@/convex/_generated/api";
+import { discountFor } from "@/convex/coupons";
 import {
   LEGENDARY_THRESHOLD,
   LEGENDARY_TIP_THRESHOLD,
@@ -12,9 +13,9 @@ import { cn } from "@/lib/utils";
 import { useSeo } from "@/lib/seo";
 import type { Id } from "@/convex/_generated/dataModel";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Copy, HeartHandshake, Loader2, QrCode, Sparkles, Trash2, Upload } from "lucide-react";
+import { Check, Copy, HeartHandshake, Loader2, QrCode, Sparkles, TicketPercent, Trash2, Upload, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { useMutation, useAction } from "convex/react";
+import { useMutation, useAction, useQuery } from "convex/react";
 import { uploadProofImage } from "@/lib/imageUpload";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -52,6 +53,12 @@ export default function Checkout() {
   const [copied, setCopied] = useState(false);
   const [tipAmount, setTipAmount] = useState(0);
   const [customTip, setCustomTip] = useState("");
+  const [couponInput, setCouponInput] = useState("");
+  // Prefilled from ?coupon= so a shared link applies itself on arrival. Read
+  // lazily rather than in an effect so the first render is already correct.
+  const [appliedCode, setAppliedCode] = useState(
+    () => new URLSearchParams(window.location.search).get("coupon")?.trim() ?? "",
+  );
   // Proof details — the order cannot be submitted without them.
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [utr, setUtr] = useState("");
@@ -61,11 +68,22 @@ export default function Checkout() {
   const [createdOrders, setCreatedOrders] = useState<CreatedOrder[] | null>(null);
 
   const tip = customTip.trim() === "" ? tipAmount : Math.max(0, Number(customTip) || 0);
-  const grandTotal = total + tip;
-  // Screenshot + UTR are all a client can be asked for; the amount and payer
-  // name are read from the screenshot by the AI review instead of typed.
-  const proofReady = proofFile !== null && utr.trim().length >= 4;
+  const subtotal = total + tip;
+
+  // Coupon — validated server-side, priced here with the same helper the
+  // server uses so the preview can never disagree with the real charge.
+  // `validate` treats an empty code as "not found", so this is safe to always run.
+  const couponCheck = useQuery(api.coupons.validate, { code: appliedCode });
+  const discount = couponCheck?.ok
+    ? discountFor({ kind: couponCheck.kind ?? "percent", value: couponCheck.value ?? 0 }, subtotal)
+    : 0;
+  const grandTotal = Math.max(0, subtotal - discount);
+  // The tier is judged on what is actually paid, so a coupon can't cost
+  // someone their premium credit.
   const tierLabel = useMemo(() => tipTierName(tip), [tip]);
+  // Screenshot + UTR are all a client is asked for; the studio reads the
+  // amount and payer name from the screenshot itself.
+  const proofReady = proofFile !== null && utr.trim().length >= 4;
 
   const copyUpi = async () => {
     try {
@@ -108,11 +126,12 @@ export default function Checkout() {
           storageId,
           utr,
           txnId: txnId || undefined,
+          couponCode: appliedCode || undefined,
         });
         created.push({
           orderId,
           label: `${item.serviceName} · ${item.tierName}`,
-          amount: item.price + tip,
+          amount: Math.max(0, item.price + tip - discount),
         });
       }
       clear();
@@ -303,24 +322,121 @@ export default function Checkout() {
             </AnimatePresence>
           </motion.section>
 
-          <div className="clay flex items-center justify-between p-5">
-            <span className="text-sm font-medium text-muted-foreground">
-              Total payable
-              {tip > 0 && (
-                <span className="ml-2 text-xs text-primary">
-                  incl. {inr(tip)} tip
-                </span>
+          {/* Coupon */}
+          <div className="clay p-5">
+            <label className="mb-2 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+              <TicketPercent className="size-4" />
+              Have a coupon?
+            </label>
+
+            {appliedCode && couponCheck?.ok ? (
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-display text-sm font-bold tracking-wider">
+                    {appliedCode}
+                  </p>
+                  <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    {couponCheck.message}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <motion.span
+                    key={discount}
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                    className="font-display text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-400"
+                  >
+                    −{inr(discount)}
+                  </motion.span>
+                  <button
+                    onClick={() => {
+                      setAppliedCode("");
+                      setCouponInput("");
+                    }}
+                    className="clay-sm flex size-7 items-center justify-center text-muted-foreground hover:text-foreground"
+                    aria-label="Remove coupon"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      setAppliedCode(couponInput.trim());
+                    }
+                  }}
+                  placeholder="Enter code"
+                  className="clay-inset min-w-0 flex-1 rounded-xl px-3.5 py-2.5 text-sm font-semibold uppercase tracking-wide outline-none focus:ring-2 focus:ring-primary/40"
+                />
+                <button
+                  onClick={() => setAppliedCode(couponInput.trim())}
+                  disabled={couponInput.trim() === ""}
+                  className="tap shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-50"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
+
+            <AnimatePresence>
+              {appliedCode && couponCheck && !couponCheck.ok && (
+                <motion.p
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-2 text-xs font-medium text-rose-600"
+                >
+                  {couponCheck.message}
+                </motion.p>
               )}
-            </span>
-            <motion.span
-              key={grandTotal}
-              initial={{ scale: 0.96, opacity: 0.6 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 320, damping: 22 }}
-              className="font-display text-2xl font-semibold"
-            >
-              {inr(grandTotal)}
-            </motion.span>
+            </AnimatePresence>
+          </div>
+
+          <div className="clay space-y-2 p-5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium text-muted-foreground">Subtotal</span>
+              <span className="tabular-nums">{inr(subtotal)}</span>
+            </div>
+            <AnimatePresence>
+              {discount > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="flex items-center justify-between overflow-hidden text-sm font-medium text-emerald-700 dark:text-emerald-400"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <TicketPercent className="size-3.5" />
+                    Coupon {appliedCode}
+                  </span>
+                  <span className="tabular-nums">−{inr(discount)}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <div className="flex items-center justify-between border-t border-border/60 pt-2">
+              <span className="text-sm font-medium text-muted-foreground">
+                Total payable
+                {tip > 0 && (
+                  <span className="ml-2 text-xs text-primary">incl. {inr(tip)} tip</span>
+                )}
+              </span>
+              <motion.span
+                key={grandTotal}
+                initial={{ scale: 0.96, opacity: 0.6 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 320, damping: 22 }}
+                className="font-display text-2xl font-semibold"
+              >
+                {inr(grandTotal)}
+              </motion.span>
+            </div>
           </div>
         </section>
 

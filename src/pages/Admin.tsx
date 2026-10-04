@@ -4,6 +4,7 @@ import { AdminPortfolio } from "@/components/eden/admin/AdminPortfolio";
 import { AdminSettings } from "@/components/eden/admin/AdminSettings";
 import { AdminCalculator } from "@/components/eden/admin/AdminCalculator";
 import { AdminCredits } from "@/components/eden/admin/AdminCredits";
+import { AdminCoupons } from "@/components/eden/admin/AdminCoupons";
 import { AdminServices } from "@/components/eden/admin/AdminServices";
 import { AdminRoles } from "@/components/eden/admin/AdminRoles";
 import { useAuth } from "@/hooks/use-auth";
@@ -16,6 +17,7 @@ import { useState } from "react";
 const TABS: { key: string; label: string; superOnly?: boolean }[] = [
   { key: "orders", label: "Orders" },
   { key: "credits", label: "Credits" },
+  { key: "coupons", label: "Coupons" },
   { key: "inbox", label: "Live Inbox" },
   { key: "portfolio", label: "Portfolio" },
   { key: "services", label: "Services" },
@@ -49,7 +51,7 @@ export default function Admin() {
             key={t.key}
             onClick={() => setTab(t.key)}
             className={cn(
-              "clay-sm rounded-full px-4 py-2 text-sm font-medium transition-colors",
+              "clay-sm tap rounded-full px-4 py-2 text-sm font-medium transition-colors",
               tab === t.key && "bg-primary text-primary-foreground ring-2 ring-primary/50",
             )}
           >
@@ -60,6 +62,7 @@ export default function Admin() {
 
       {tab === "orders" && <AdminOrders />}
       {tab === "credits" && <AdminCredits />}
+      {tab === "coupons" && <AdminCoupons />}
       {tab === "inbox" && <AdminInbox />}
       {tab === "portfolio" && <AdminPortfolio />}
       {tab === "services" && <AdminServices />}
