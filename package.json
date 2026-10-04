@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify:math": "bun run scripts/verify-proof-math.ts"
+    "verify:math": "bun run scripts/verify-proof-math.ts",
+    "verify:money": "bun run scripts/verify-cart-money.ts"
   },
   "dependencies": {
     "@convex-dev/auth": "^0.0.90",

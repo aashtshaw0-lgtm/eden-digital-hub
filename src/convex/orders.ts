@@ -9,6 +9,11 @@ import { requireAdmin } from "./lib/rbac";
 import { enforceRateLimit } from "./lib/rateLimit";
 import { recordRedemption, resolveForOrder } from "./coupons";
 import {
+  MAX_CART_LINES,
+  allocateProportionally,
+  distributeDiscount,
+} from "./lib/money";
+import {
   PREMIUM_THRESHOLD as PREMIUM_TIP_THRESHOLD,
   tierFor as tipTierFor,
 } from "./credits";
@@ -289,6 +294,164 @@ export const createWithProof = mutation({
       await grantCreditForTip(ctx, { order: (await ctx.db.get(orderId))!, tipAmount: tip });
     }
     return orderId;
+  },
+});
+
+/**
+ * Places a whole cart in one transaction.
+ *
+ * The single-item `createWithProof` above is still correct for one line, but a
+ * cart of N lines used to call it N times with the same tip and the same coupon
+ * code. That charged the tip N times, applied the discount once per line, and —
+ * because `maxPerClient` defaults to one — made the second line throw "you have
+ * already used this coupon" *after* the first order was already committed, so
+ * the client had paid and the studio held half an order.
+ *
+ * Here the tip and the coupon are each resolved once against the cart total and
+ * then allocated across the lines, so the order totals sum to exactly what the
+ * client was shown on the checkout receipt.
+ */
+export const createCartWithProof = mutation({
+  args: {
+    items: v.array(
+      v.object({
+        serviceId: v.id("services"),
+        tierId: v.id("serviceTiers"),
+        requirements: v.any(),
+      }),
+    ),
+    clientName: v.string(),
+    clientEmail: v.string(),
+    clientWhatsapp: v.string(),
+    tipAmount: v.optional(v.number()),
+    storageId: v.id("_storage"),
+    utr: v.string(),
+    txnId: v.optional(v.string()),
+    declaredAmount: v.optional(v.number()),
+    payerName: v.optional(v.string()),
+    couponCode: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("You must be signed in to place an order.");
+    if (args.items.length === 0) throw new Error("Your cart is empty.");
+    if (args.items.length > MAX_CART_LINES) {
+      throw new Error(`Please place at most ${MAX_CART_LINES} items per order.`);
+    }
+    // One rate-limit unit per cart, not per line, so a legitimate multi-item
+    // checkout cannot exhaust the budget it is entitled to.
+    await enforceRateLimit(ctx, { name: "orderCreate", key: userId, max: 10, windowMs: 3600_000 });
+
+    const utr = args.utr.trim();
+    if (utr.length < 4) throw new Error("Enter the UPI reference / UTR from your payment app.");
+
+    // Validate every line before writing anything, so a bad tier on line three
+    // cannot leave lines one and two committed.
+    const lines: {
+      tier: Doc<"serviceTiers">;
+      service: Doc<"services">;
+      requirements: unknown;
+      gross: number;
+    }[] = [];
+    for (const item of args.items) {
+      const tier = await ctx.db.get(item.tierId);
+      if (!tier || tier.serviceId !== item.serviceId) throw new Error("Invalid tier selected.");
+      const service = await ctx.db.get(item.serviceId);
+      if (!service) throw new Error("Invalid service selected.");
+      lines.push({
+        tier,
+        service,
+        requirements: item.requirements,
+        gross: Math.max(0, tier.basePrice),
+      });
+    }
+
+    const tip = Math.max(0, args.tipAmount ?? 0);
+    const itemsTotal = lines.reduce((sum, line) => sum + line.gross, 0);
+    const subtotal = itemsTotal + tip;
+
+    // Resolved once for the whole cart, against the total the client was shown.
+    let couponApplied: { couponId: Id<"coupons">; discount: number; label: string } | null = null;
+    if (args.couponCode && args.couponCode.trim() !== "") {
+      couponApplied = await resolveForOrder(ctx, {
+        code: args.couponCode,
+        userId,
+        subtotal,
+      });
+    }
+
+    // The tip and the discount are cart-level amounts, so they are spread over
+    // the lines in proportion to what each line is worth. Each part is whole
+    // rupees and the parts sum back to the exact cart total.
+    const tipParts = allocateProportionally(tip, lines.map((l) => l.gross));
+    const grossParts = lines.map((line, i) => line.gross + tipParts[i]);
+    const discountParts = distributeDiscount(
+      grossParts,
+      couponApplied?.discount ?? 0,
+    );
+
+    const now = Date.now();
+    const orderIds: Id<"orders">[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const orderId = await ctx.db.insert("orders", {
+        clientId: userId,
+        serviceId: line.service._id,
+        tierId: line.tier._id,
+        serviceName: line.service.name,
+        tierName: line.tier.name,
+        requirements: line.requirements,
+        clientName: args.clientName,
+        clientEmail: args.clientEmail,
+        clientWhatsapp: args.clientWhatsapp,
+        totalPrice: Math.max(0, grossParts[i] - discountParts[i]),
+        status: "pending",
+        createdAt: now,
+        updatedAt: now,
+      });
+      orderIds.push(orderId);
+
+      // One proof row per order so the board can show evidence for every line,
+      // all pointing at the single screenshot the client uploaded for the cart.
+      await ctx.db.insert("paymentProofs", {
+        orderId,
+        storageId: args.storageId,
+        utr,
+        txnId: args.txnId?.trim() || undefined,
+        declaredAmount: args.declaredAmount,
+        payerName: args.payerName?.trim() || undefined,
+        uploadedAt: now,
+      });
+    }
+
+    // One redemption for the cart, so a single-use coupon is spent exactly once
+    // no matter how many lines it covered.
+    if (couponApplied) {
+      await recordRedemption(ctx, {
+        couponId: couponApplied.couponId,
+        userId,
+        discount: couponApplied.discount,
+        orderId: orderIds[0],
+      });
+    }
+
+    // The tip is credited once, against the first line's order, and is
+    // idempotent per order so a retried cart cannot double-grant.
+    if (tip > 0) {
+      await grantCreditForTip(ctx, {
+        order: (await ctx.db.get(orderIds[0]))!,
+        tipAmount: tip,
+      });
+    }
+
+    // The per-line totals are returned so the client's confirmation screen shows
+    // exactly what was written, rather than re-deriving the allocation and
+    // risking a receipt that does not add up to the charge.
+    return lines.map((line, i) => ({
+      orderId: orderIds[i],
+      label: `${line.service.name} · ${line.tier.name}`,
+      amount: Math.max(0, grossParts[i] - discountParts[i]),
+    }));
   },
 });
 

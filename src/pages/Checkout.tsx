@@ -27,11 +27,7 @@ interface CreatedOrder {
   amount: number;
 }
 
-interface Req {
-  clientName: string;
-  clientEmail: string;
-  clientWhatsapp: string;
-}
+
 
 /** Tip presets shown as quick-pick chips, plus a custom amount box. */
 const TIP_PRESETS = [0, 100, 250, 500];
@@ -47,7 +43,7 @@ export default function Checkout() {
   useSeo({ title: `Checkout | Eden - Digital Design & Management` });
   const { items, total, removeItem, clear } = useCart();
   const { upiId, qrImageUrl } = useSettings();
-  const createWithProof = useMutation(api.orders.createWithProof);
+  const createCartWithProof = useMutation(api.orders.createCartWithProof);
   const generateProofUrl = useMutation(api.orders.generateUploadUrl);
   const storeProofBytes = useAction(api.orders.storeProofBytes);
   const [paying, setPaying] = useState(false);
@@ -78,52 +74,52 @@ export default function Checkout() {
   const checkCouponCode = useMutation(api.coupons.validate);
   const [couponCheck, setCouponCheck] = useState<CouponCheck | null>(null);
 
+  // A single monotonic token, bumped for every check. `validate` is rate limited
+  // to 20 probes per 10 minutes, so one Apply click must cost exactly one
+  // probe, and a slow reply for an abandoned code must never overwrite the
+  // result of a newer one.
+  const couponProbe = useRef(0);
+
+  /**
+   * Asks the server about a code and resolves with the verdict.
+   *
+   * Deliberately does not write state: callers apply the result, which keeps
+   * the state update inside a promise callback rather than an effect body.
+   * Resolves `null` when a newer probe has superseded this one.
+   */
   const runCouponCheck = useCallback(
-    async (code: string) => {
+    (code: string): Promise<CouponCheck | null> => {
       const trimmed = code.trim();
-      // Callers clear the current result themselves; this never writes state
-      // synchronously, so the effect that kicks it off stays clean.
-      if (trimmed === "") return;
-      try {
-        setCouponCheck(await checkCouponCode({ code: trimmed }));
-      } catch {
-        setCouponCheck({
-          ok: false,
-          discount: 0,
-          code: "not_found",
-          message: "That code couldn't be checked right now — try again.",
-        });
-      }
+      if (trimmed === "") return Promise.resolve(null);
+      const probe = ++couponProbe.current;
+      const failure: CouponCheck = {
+        ok: false,
+        discount: 0,
+        code: "not_found",
+        message: "That code couldn't be checked right now — try again.",
+      };
+      return checkCouponCode({ code: trimmed })
+        .catch(() => failure)
+        .then((result) => (probe === couponProbe.current ? result : null));
     },
     [checkCouponCode],
   );
 
-  // A code arriving in the URL is checked once on arrival. The result is applied
-  // inside a promise callback (never synchronously in the effect body), and a
-  // stale response for an old code is discarded rather than overwriting a newer
-  // one when someone tries two codes quickly.
+  // Fires only when the applied code actually changes — which covers the code
+  // arriving in the URL, and nothing else. Clicking Apply for a *different*
+  // code changes `appliedCode` and is checked by this effect; clicking Apply
+  // for the code already applied is handled inline by the button, so a single
+  // click never costs two probes.
   useEffect(() => {
     if (appliedCode === "") return;
     let cancelled = false;
-    void checkCouponCode({ code: appliedCode }).then(
-      (result) => {
-        if (!cancelled) setCouponCheck(result);
-      },
-      () => {
-        if (!cancelled) {
-          setCouponCheck({
-            ok: false,
-            discount: 0,
-            code: "not_found",
-            message: "That code couldn't be checked right now — try again.",
-          });
-        }
-      },
-    );
+    void runCouponCheck(appliedCode).then((result) => {
+      if (!cancelled && result) setCouponCheck(result);
+    });
     return () => {
       cancelled = true;
     };
-  }, [appliedCode, checkCouponCode]);
+  }, [appliedCode, runCouponCheck]);
   const discount = couponCheck?.ok
     ? discountFor({ kind: couponCheck.kind ?? "percent", value: couponCheck.value ?? 0 }, subtotal)
     : 0;
@@ -163,30 +159,33 @@ export default function Checkout() {
       if (!upload.ok) throw new Error(upload.reason);
       const storageId = upload.storageId as Id<"_storage">;
 
-      for (const item of items) {
-        const r = item.requirements as unknown as Req;
-        const orderId = await createWithProof({
-          serviceId: item.serviceId as Id<"services">,
-          tierId: item.tierId as Id<"serviceTiers">,
-          requirements: item.requirements,
-          clientName: r.clientName,
-          clientEmail: r.clientEmail,
-          clientWhatsapp: r.clientWhatsapp,
+      // The whole cart is one transaction: the tip and the coupon are each
+      // charged once and allocated across the lines server-side, so a bad line
+      // or a spent coupon cannot leave a partial order behind. The server
+      // returns the per-line totals it actually wrote, so the receipt below
+      // cannot drift from the charge.
+      const first = items[0].requirements as Record<string, unknown>;
+      created.push(
+        ...(await createCartWithProof({
+          items: items.map((item) => ({
+            serviceId: item.serviceId as Id<"services">,
+            tierId: item.tierId as Id<"serviceTiers">,
+            requirements: item.requirements,
+          })),
+          clientName: String(first.clientName ?? ""),
+          clientEmail: String(first.clientEmail ?? ""),
+          clientWhatsapp: String(first.clientWhatsapp ?? ""),
           tipAmount: tip,
           storageId,
           utr,
           txnId: txnId || undefined,
-          // Only send a code that actually validated. Sending a bad one would make the
-          // server throw and fail the whole order, after the client had already
-          // paid and uploaded their proof. The server still re-validates.
+          // Only send a code that actually validated. Sending a bad one would
+          // make the server throw and fail the whole order, after the client
+          // had already paid and uploaded their proof. The server still
+          // re-validates.
           couponCode: couponCheck?.ok ? appliedCode : undefined,
-        });
-        created.push({
-          orderId,
-          label: `${item.serviceName} · ${item.tierName}`,
-          amount: Math.max(0, item.price + tip - discount),
-        });
-      }
+        })),
+      );
       clear();
       toast.success("Order and proof received — we'll confirm shortly.");
       setCreatedOrders(created);
@@ -423,8 +422,17 @@ export default function Checkout() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      setAppliedCode(couponInput.trim());
-                      void runCouponCheck(couponInput);
+                      const code = couponInput.trim();
+                      setCouponCheck(null);
+                      // Re-applying the same code does not change `appliedCode`,
+                      // so the effect will not fire — check it right here.
+                      if (code === appliedCode) {
+                        void runCouponCheck(code).then((result) => {
+                          if (result) setCouponCheck(result);
+                        });
+                      } else {
+                        setAppliedCode(code);
+                      }
                     }
                   }}
                   placeholder="Enter code"
@@ -434,8 +442,16 @@ export default function Checkout() {
                   onClick={() => {
                     const code = couponInput.trim();
                     setCouponCheck(null);
-                    setAppliedCode(code);
-                    void runCouponCheck(code);
+                    // Same rule as Enter: a new code is picked up by the effect,
+                    // a repeat of the applied code is checked inline. One
+                    // click, one probe.
+                    if (code === appliedCode) {
+                      void runCouponCheck(code).then((result) => {
+                        if (result) setCouponCheck(result);
+                      });
+                    } else {
+                      setAppliedCode(code);
+                    }
                   }}
                   disabled={couponInput.trim() === ""}
                   className="tap shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-50"
