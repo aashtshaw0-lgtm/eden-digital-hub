@@ -133,6 +133,32 @@ const schema = defineSchema(
       count: v.number(),
       windowStart: v.number(),
     }).index("by_name_key", ["name", "key"]),
+
+    // payment proof uploaded by the client before marking an order paid
+    paymentProofs: defineTable({
+      orderId: v.id("orders"),
+      storageId: v.id("_storage"),
+      uploadedAt: v.number(),
+    }).index("by_order", ["orderId"]),
+
+    // AI review of a payment proof: what is still missing + risk signals
+    paymentReviews: defineTable({
+      proofId: v.id("paymentProofs"),
+      summary: v.optional(v.string()),
+      stillNeeded: v.optional(v.array(v.string())),
+      paidAmount: v.optional(v.number()),
+      expectedAmount: v.optional(v.number()),
+      tipAmount: v.optional(v.number()),
+      isSpeedPay: v.optional(v.boolean()),
+      reviewedAt: v.optional(v.number()),
+    }).index("by_proof", ["proofId"]),
+
+    // credit ledger — names + greatness descriptions editable by admin
+    credits: defineTable({
+      name: v.string(),
+      greatness: v.optional(v.string()),
+      createdAt: v.number(),
+    }).index("by_name", ["name"]),
   },
   {
     schemaValidation: false,

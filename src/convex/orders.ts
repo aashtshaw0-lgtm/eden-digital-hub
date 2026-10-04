@@ -1,8 +1,22 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { requireAdmin } from "./lib/rbac";
 import { enforceRateLimit } from "./lib/rateLimit";
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+/**
+ * Expected env var shape for the Gemini Vision OCR/analysis action.
+ *
+ * When `GEMINI_API_KEY` is present in the Keys tab, `reviewProof` calls Gemini
+ * to read the uploaded payer-proof screenshot and extract payment details.
+ * Until then, the admin board still gets a safe human-friendly review so the
+ * paid / speed-pay / low-tip alerts can be demoed immediately.
+ */
+const GEMINI_MODEL = "gemini-2.5-flash";
 
 /** Short-lived upload URL for intake reference files (signed-in clients). */
 export const generateUploadUrl = mutation({
@@ -13,6 +27,83 @@ export const generateUploadUrl = mutation({
     // Storage uploads cost real bytes — keep them bounded per account.
     await enforceRateLimit(ctx, { name: "uploadUrl", key: userId, max: 30, windowMs: 3600_000 });
     return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/** Upload URL for a client proof of payment attached to a pending order. */
+export const generateProofUrl = mutation({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("Sign in to attach a payment proof.");
+    const order = await ctx.db.get(orderId);
+    if (!order) throw new Error("Order not found.");
+    if (order.clientId !== userId) throw new Error("That order does not belong to you.");
+    if (order.status !== "pending") throw new Error("Only pending orders can receive a payment proof.");
+    await enforceRateLimit(ctx, { name: "proofUpload", key: userId, max: 20, windowMs: 3600_000 });
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/** Attach a payer proof image to an order. */
+export const attachProof = mutation({
+  args: { orderId: v.id("orders"), storageId: v.id("_storage") },
+  handler: async (ctx, { orderId, storageId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("Sign in to attach a payment proof.");
+    const order = await ctx.db.get(orderId);
+    if (!order) throw new Error("Order not found.");
+    if (order.clientId !== userId) throw new Error("That order does not belong to you.");
+    if (order.status !== "pending") throw new Error("Only pending orders can receive a payment proof.");
+    const existing = await ctx.db
+      .query("paymentProofs")
+      .withIndex("by_order", (q) => q.eq("orderId", orderId))
+      .first();
+    if (existing) throw new Error("A payment proof is already attached to this order.");
+    const proofId = await ctx.db.insert("paymentProofs", {
+      orderId,
+      storageId,
+      uploadedAt: Date.now(),
+    });
+    return proofId;
+  },
+});
+
+/** AI review of the uploaded proof — decides what is still missing + risk signals. */
+export const reviewProof = mutation({
+  args: { proofId: v.id("paymentProofs") },
+  handler: async (ctx, { proofId }) => {
+    await requireAdmin(ctx);
+    const proof = await ctx.db.get(proofId);
+    if (!proof) throw new Error("Payment proof not found.");
+
+    const already = await ctx.db
+      .query("paymentReviews")
+      .withIndex("by_proof", (q) => q.eq("proofId", proofId))
+      .first();
+    if (already) return already._id;
+
+    const url = await ctx.storage.getUrl(proof.storageId);
+    if (!url) throw new Error("Proof image is not reachable.");
+
+    const order = await ctx.db.get(proof.orderId);
+    if (!order) throw new Error("Attached order not found.");
+
+    const review = await analyzePaymentProof(ctx, {
+      imageUrl: url,
+      order,
+    });
+
+    return await ctx.db.insert("paymentReviews", {
+      proofId,
+      summary: review.summary,
+      stillNeeded: review.stillNeeded,
+      paidAmount: review.paidAmount ?? undefined,
+      expectedAmount: review.expectedAmount,
+      tipAmount: review.tipAmount,
+      isSpeedPay: review.isSpeedPay,
+      reviewedAt: Date.now(),
+    });
   },
 });
 
@@ -89,6 +180,64 @@ export const listAll = query({
   },
 });
 
+/** Record a customer tip attached to an order. */
+export const recordTip = mutation({
+  args: { orderId: v.id("orders"), tipAmount: v.number() },
+  handler: async (ctx, { orderId, tipAmount }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("Sign in to add a tip.");
+    const order = await ctx.db.get(orderId);
+    if (!order) throw new Error("Order not found.");
+    if (order.clientId !== userId) throw new Error("You can only tip your own orders.");
+    if (tipAmount < 0) throw new Error("Tip cannot be negative.");
+    await ctx.db.patch(orderId, {
+      totalPrice: order.totalPrice + tipAmount,
+      updatedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+/** Confirm payment on an order after a human review of the proof. */
+export const confirmPayment = mutation({
+  args: {
+    orderId: v.id("orders"),
+    paidAmount: v.number(),
+    reviewedProofId: v.id("paymentProofs"),
+  },
+  handler: async (ctx, { orderId, paidAmount, reviewedProofId }) => {
+    await requireAdmin(ctx);
+    const order = await ctx.db.get(orderId);
+    if (!order) throw new Error("Order not found.");
+    const review = await ctx.db
+      .query("paymentReviews")
+      .withIndex("by_proof", (q) => q.eq("proofId", reviewedProofId))
+      .first();
+    if (!review) throw new Error("Please review the proof before confirming payment.");
+    const attachedProof = await ctx.db
+      .query("paymentProofs")
+      .withIndex("by_order", (q) => q.eq("orderId", orderId))
+      .first();
+    if (attachedProof?._id !== reviewedProofId) {
+      // safety tie-break: the reviewed proof must be the one attached to this order
+      throw new Error("The reviewed proof is not attached to this order.");
+    }
+    const expectedTotal = order.totalPrice;
+    await ctx.db.patch(orderId, {
+      status: "approved",
+      updatedAt: Date.now(),
+    });
+    return {
+      orderId,
+      paidAmount,
+      expectedTotal,
+      tipAmount: review.tipAmount,
+      isSpeedPay: review.isSpeedPay,
+      stillNeeded: review.stillNeeded,
+    };
+  },
+});
+
 /** Status transition — admin only. */
 export const updateStatus = mutation({
   args: { orderId: v.id("orders"), status: v.union(v.literal("pending"), v.literal("approved"), v.literal("completed")) },
@@ -100,6 +249,307 @@ export const updateStatus = mutation({
     return null;
   },
 });
+
+/**
+ * Payment-proof OCR + AI analysis.
+ *
+ * When `GEMINI_API_KEY` is configured in the Keys tab, this action calls
+ * Gemini Vision to read the uploaded payer-proof screenshot and extract the
+ * paid amount, tip, payer identity, and speed-pay signals. The result feeds
+ * the admin order board: paid status, still-needed checklist, and AI alerts
+ * (speed-pay, paid below tip).
+ *
+ * Without the key, the admin board still behaves correctly — it shows a
+ * careful human review checklist so nothing is approved blindly.
+ */
+async function analyzePaymentProof(
+  ctx: MutationCtx,
+  args: { imageUrl: string; order: Doc<"orders"> },
+) {
+  const { order } = args;
+  const expectedTotal = order.totalPrice;
+
+  if (GEMINI_API_KEY) {
+    try {
+      return await analyzeWithGemini(ctx, {
+        imageUrl,
+        order,
+        expectedTotal,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("API key")) {
+        throw new Error(
+          `Gemini is configured, but the API key is not accepted: ${message}`,
+        );
+      }
+      // Any transient vision failure falls back to the safe human checklist below.
+      console.warn("[analyzePaymentProof] Gemini failed, using safe review:", message);
+    }
+  }
+
+  // Safe fallback: never auto-approve; ask the admin to verify the receipt.
+  return {
+    summary: `Proof uploaded for “${order.serviceName} · ${order.tierName}” — review the receipt before approving.`,
+    stillNeeded: [
+      `Confirm the ₹${expectedTotal.toLocaleString("en-IN")} UPI receipt for ${order.clientName}`,
+      "Match the payer name on the screenshot to the client name on the order",
+      "Verify the transaction date is today or yesterday",
+    ],
+    paidAmount: null,
+    expectedAmount: expectedTotal,
+    tipAmount: 0,
+    isSpeedPay: false,
+  };
+}
+
+interface GeminiReviewInput {
+  imageUrl: string;
+  order: Doc<"orders">;
+  expectedTotal: number;
+}
+
+interface GeminiReviewOutput {
+  summary: string;
+  stillNeeded: string[];
+  paidAmount: number | null;
+  expectedAmount: number;
+  tipAmount: number;
+  isSpeedPay: boolean;
+}
+
+async function analyzeWithGemini(
+  ctx: MutationCtx,
+  { imageUrl, order, expectedTotal }: GeminiReviewInput,
+): Promise<GeminiReviewOutput> {
+  const vision = await import("@google/generative-ai").then((m) =>
+    m.GoogleGenerativeAI
+  );
+  const genAI = new vision(GEMINI_API_KEY!);
+  const model = genAI.getGenerativeModel({
+    model: GEMINI_MODEL,
+    systemInstruction: [
+      "You are the payment-proof auditor for Eden, a design studio.",
+      "Read the uploaded screenshot and extract the payer proof details.",
+      "Respond with JSON only, no other text.",
+    ].join("\n"),
+  });
+
+  const result = await model.generateContent([
+    {
+      inlineData: {
+        data: await imageUrlToBase64(ctx, imageUrl),
+        mimeType: "image/jpeg",
+      },
+    },
+    {
+      text: [
+        "Extract the following from this payment receipt screenshot as JSON:",
+        "{",
+        "  \"paidAmount\": number|null,",
+        "  \"tipAmount\": number,",
+        "  \"payerName\": string|null,",
+        "  \"transactionDate\": string|null,",
+        "  \"upiTransactionId\": string|null,",
+        "  \"confidence\": \"high\"|\"medium\"|\"low\",",
+        "  \"ocrIssues\": string[]",
+        "}",
+        "Rules:",
+        "- paidAmount is the total debited in INR, or null if unreadable.",
+        "- tipAmount is any extra amount above the visible billed amount; if none is visible, 0.",
+        "- payerName is the UPI/account name shown on the screenshot, or null.",
+        "- transactionDate is an ISO-8601 date string if visible, else null.",
+        "- upiTransactionId is any transaction/reference number visible, else null.",
+        "- confidence is high only if the amount and payer are clearly legible.",
+        "- ocrIssues lists anything unreadable or ambiguous.",
+        "Do not invent values. If a field is not visible, use null or 0 as appropriate.",
+      ].join("\n"),
+    },
+  ]);
+  const text = result.response.text();
+
+  let parsed: {
+    paidAmount: unknown;
+    tipAmount: unknown;
+    payerName: unknown;
+    transactionDate: unknown;
+    upiTransactionId: unknown;
+    confidence: unknown;
+    ocrIssues: unknown;
+  };
+  try {
+    const jsonChunk = text.slice(
+      text.indexOf("{"),
+      text.lastIndexOf("}") + 1,
+    );
+    parsed = JSON.parse(jsonChunk);
+  } catch {
+    throw new Error("Gemini returned invalid JSON for the proof image.");
+  }
+
+  const paidAmount =
+    typeof parsed.paidAmount === "number" && Number.isFinite(parsed.paidAmount)
+      ? parsed.paidAmount
+      : null;
+  const tipAmount = Math.max(0, Number(parsed.tipAmount) || 0);
+  const payerName = typeof parsed.payerName === "string" ? parsed.payerName : null;
+  const transactionDate = typeof parsed.transactionDate === "string" ? parsed.transactionDate : null;
+  const upiTransactionId =
+    typeof parsed.upiTransactionId === "string" ? parsed.upiTransactionId : null;
+  const confidence = parsed.confidence as string | undefined;
+  const ocrIssues = Array.isArray(parsed.ocrIssues) ? parsed.ocrIssues : [];
+
+  const expectedDate = new Date(order.createdAt ?? Date.now());
+  const isSpeedPay = isDateWithinDays(transactionDate, -2);
+
+  const stillNeeded: string[] = [];
+
+  if (paidAmount === null) {
+    stillNeeded.push("The paid amount is not legible on the screenshot — ask the client for a clearer receipt.");
+  } else if (paidAmount < expectedTotal) {
+    stillNeeded.push(
+      `Screenshot shows ₹${paidAmount.toLocaleString("en-IN")} but the order total is ₹${expectedTotal.toLocaleString("en-IN")} — confirm the balance is paid.`,
+    );
+  }
+
+  if (paidAmount !== null && tipAmount === 0 && paidAmount === expectedTotal) {
+    stillNeeded.push("No tip was visible on the receipt — confirm whether the client intended to add one.");
+  }
+
+  if (payerName === null || !payerName.toLowerCase().includes(String(order.clientName).toLowerCase())) {
+    stillNeeded.push(
+      payerName
+        ? `Payer name “${payerName}” does not match the client name “${order.clientName}” — confirm the payer is authorized.`
+        : "No payer name could be read on the screenshot — ask the client to confirm who made the payment.",
+    );
+  }
+
+  if (upiTransactionId === null) {
+    stillNeeded.push("No UPI transaction ID is visible — ask for a screenshot that shows the transaction reference.");
+  }
+
+  if (confidence === "low") {
+    stillNeeded.push("The receipt is low confidence for OCR — request a sharper image or a bank statement excerpt.");
+  }
+
+  if (ocrIssues.length > 0) {
+    stillNeeded.push(...ocrIssues.slice(0, 3).map((issue) => `OCR issue: ${issue}`));
+  }
+
+  const paidBelowTip =
+    paidAmount !== null && paidAmount < expectedTotal + tipAmount;
+
+  return {
+    summary: buildSummary({
+      order,
+      paidAmount,
+      tipAmount,
+      payerName,
+      upiTransactionId,
+      transactionDate,
+      confidence,
+      paidBelowTip,
+      isSpeedPay,
+    }),
+    stillNeeded,
+    paidAmount,
+    expectedAmount: expectedTotal,
+    tipAmount,
+    isSpeedPay,
+  };
+}
+
+function isDateWithinDays(dateString: string | null, maxDaysAgo: number): boolean {
+  if (!dateString) return false;
+  const parsed = new Date(dateString);
+  if (Number.isNaN(parsed.getTime())) return false;
+  const cutoff = Date.now() - maxDaysAgo * 86_400_000;
+  return parsed.getTime() >= cutoff;
+}
+
+function buildSummary({
+  order,
+  paidAmount,
+  tipAmount,
+  payerName,
+  upiTransactionId,
+  transactionDate,
+  confidence,
+  paidBelowTip,
+  isSpeedPay,
+}: {
+  order: Doc<"orders">;
+  paidAmount: number | null;
+  tipAmount: number;
+  payerName: string | null;
+  upiTransactionId: string | null;
+  transactionDate: string | null;
+  confidence: string | undefined;
+  paidBelowTip: boolean;
+  isSpeedPay: boolean;
+}): string {
+  const parts = [
+    `“${order.serviceName} · ${order.tierName}” proof reviewed`,
+  ];
+
+  if (paidAmount !== null) {
+    parts.push(`₹${paidAmount.toLocaleString("en-IN")} captured`);
+    if (tipAmount > 0) {
+      parts.push(`incl. ₹${tipAmount.toLocaleString("en-IN")} tip`);
+    }
+  } else {
+    parts.push("amount not legible");
+  }
+
+  if (payerName) {
+    parts.push(`payer “${payerName}”`);
+  }
+
+  if (upiTransactionId) {
+    parts.push(`ref ${upiTransactionId}`);
+  }
+
+  if (transactionDate) {
+    parts.push(`on ${new Date(transactionDate).toLocaleDateString("en-IN")}`);
+  }
+
+  if (confidence) {
+    parts.push(`OCR confidence ${confidence}`);
+  }
+
+  if (isSpeedPay) {
+    parts.push("speed-pay signal");
+  }
+
+  if (paidBelowTip) {
+    parts.push("paid below expected total + tip");
+  }
+
+  return parts.join(" — ") + ".";
+}
+
+async function imageUrlToBase64(
+  ctx: MutationCtx,
+  url: string,
+): Promise<string> {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Cannot download proof image: HTTP ${response.status}`);
+  }
+  const bytes = await response.arrayBuffer();
+  if (bytes.byteLength > 10 * 1024 * 1024) {
+    throw new Error("Proof image is too large (max 10 MB).");
+  }
+  const base64 = btoa(
+    new Uint8Array(bytes).reduce(
+      (acc, byte) => acc + String.fromCharCode(byte),
+      "",
+    ),
+  );
+  return base64;
+}
 
 /** Financial widget: completed orders within a window → volume, revenue, 20% cut. */
 export const stats = query({
