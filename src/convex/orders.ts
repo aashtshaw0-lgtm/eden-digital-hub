@@ -210,6 +210,27 @@ export const listMine = query({
   },
 });
 
+/**
+ * Whether the studio can actually receive a UPI payment right now.
+ *
+ * `settings.get` substitutes a placeholder for a missing UPI ID, which hides
+ * the one thing an admin most needs to see on the order board: that clients
+ * are being asked to pay an account that does not exist.
+ */
+export const paymentReadiness = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const row = await ctx.db.query("globalSettings").first();
+    const upiId = row?.upiId?.trim() || null;
+    return {
+      upiConfigured: upiId !== null,
+      upiId,
+      hasQr: Boolean(row?.qrStorageId),
+    };
+  },
+});
+
 /** Every order with client identity, proof, and AI review — admin board. */
 export const listAll = query({
   args: {},
@@ -380,10 +401,12 @@ async function analyzePaymentProof(
 
   if (GEMINI_API_KEY) {
     try {
+      const settings = await ctx.db.query("globalSettings").first();
       return await analyzeWithGemini(ctx, {
         imageUrl,
         order,
         expectedTotal,
+        studioUpiId: settings?.upiId?.trim() || null,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -416,6 +439,7 @@ interface GeminiReviewInput {
   imageUrl: string;
   order: Doc<"orders">;
   expectedTotal: number;
+  studioUpiId: string | null;
 }
 
 interface GeminiReviewOutput {
@@ -429,7 +453,7 @@ interface GeminiReviewOutput {
 
 async function analyzeWithGemini(
   ctx: MutationCtx,
-  { imageUrl, order, expectedTotal }: GeminiReviewInput,
+  { imageUrl, order, expectedTotal, studioUpiId }: GeminiReviewInput,
 ): Promise<GeminiReviewOutput> {
   const vision = await import("@google/generative-ai").then((m) =>
     m.GoogleGenerativeAI
@@ -453,23 +477,33 @@ async function analyzeWithGemini(
     },
     {
       text: [
-        "Extract the following from this payment receipt screenshot as JSON:",
+        "Extract the following from this payment screenshot as JSON:",
         "{",
         "  \"paidAmount\": number|null,",
         "  \"tipAmount\": number,",
         "  \"payerName\": string|null,",
+        "  \"payeeName\": string|null,",
+        "  \"payeeHandle\": string|null,",
+        "  \"channel\": \"upi\"|\"wallet\"|\"card\"|\"netbanking\"|\"unknown\",",
         "  \"transactionDate\": string|null,",
         "  \"upiTransactionId\": string|null,",
+        "  \"referenceIds\": string[],",
         "  \"confidence\": \"high\"|\"medium\"|\"low\",",
         "  \"ocrIssues\": string[]",
         "}",
         "Rules:",
         "- paidAmount is the total debited in INR, or null if unreadable.",
         "- tipAmount is any extra amount above the visible billed amount; if none is visible, 0.",
-        "- payerName is the UPI/account name shown on the screenshot, or null.",
+        "- payerName is who SENT the money (the source account/wallet holder).",
+        "  The person named next to 'to' is the RECIPIENT, not the payer - put that in payeeName.",
+        "- payeeName is the person/organisation who RECEIVED the money.",
+        "- payeeHandle is the receiving UPI id or wallet handle including the @suffix, or null.",
+        "- channel is 'wallet' for app-to-app or wallet transfers, 'upi' for a UPI collect/pay QR,",
+        "  'card' or 'netbanking' for those rails, and 'unknown' if it cannot be told apart.",
         "- transactionDate is an ISO-8601 date string if visible, else null.",
-        "- upiTransactionId is any transaction/reference number visible, else null.",
-        "- confidence is high only if the amount and payer are clearly legible.",
+        "- upiTransactionId is the UPI reference/UTR if one is shown, else null.",
+        "- referenceIds lists every id shown, including TXN IDs and UTRs.",
+        "- confidence is high only if the amount and both names are clearly legible.",
         "- ocrIssues lists anything unreadable or ambiguous.",
         "Do not invent values. If a field is not visible, use null or 0 as appropriate.",
       ].join("\n"),
@@ -481,8 +515,12 @@ async function analyzeWithGemini(
     paidAmount: unknown;
     tipAmount: unknown;
     payerName: unknown;
+    payeeName: unknown;
+    payeeHandle: unknown;
+    channel: unknown;
     transactionDate: unknown;
     upiTransactionId: unknown;
+    referenceIds: unknown;
     confidence: unknown;
     ocrIssues: unknown;
   };
@@ -502,6 +540,12 @@ async function analyzeWithGemini(
       : null;
   const tipAmount = Math.max(0, Number(parsed.tipAmount) || 0);
   const payerName = typeof parsed.payerName === "string" ? parsed.payerName : null;
+  const payeeName = typeof parsed.payeeName === "string" ? parsed.payeeName : null;
+  const payeeHandle = typeof parsed.payeeHandle === "string" ? parsed.payeeHandle : null;
+  const channel = typeof parsed.channel === "string" ? parsed.channel : "unknown";
+  const referenceIds = Array.isArray(parsed.referenceIds)
+    ? parsed.referenceIds.filter((id): id is string => typeof id === "string")
+    : [];
   const transactionDate = typeof parsed.transactionDate === "string" ? parsed.transactionDate : null;
   const upiTransactionId =
     typeof parsed.upiTransactionId === "string" ? parsed.upiTransactionId : null;
@@ -532,6 +576,22 @@ async function analyzeWithGemini(
     );
   }
 
+  // A wallet handle or a non-UPI rail means the money did not obviously land in
+  // the studio account, so the amount alone is not proof of payment.
+  if (channel === "wallet") {
+    stillNeeded.push(
+      "This looks like a wallet-to-wallet transfer, not a UPI payment to the studio — ask for the UPI receipt showing payment to Eden's UPI ID.",
+    );
+  } else if (payeeHandle && !studioUpiId) {
+    stillNeeded.push(
+      `Paid to “${payeeHandle}” but Eden has no UPI ID configured yet — set one under Website settings before approving.`,
+    );
+  } else if (payeeHandle && studioUpiId && payeeHandle.toLowerCase() !== studioUpiId.toLowerCase()) {
+    stillNeeded.push(
+      `Paid to “${payeeHandle}” instead of the studio UPI ID “${studioUpiId}” — the money has not reached Eden.`,
+    );
+  }
+
   if (upiTransactionId === null) {
     stillNeeded.push("No UPI transaction ID is visible — ask for a screenshot that shows the transaction reference.");
   }
@@ -553,7 +613,10 @@ async function analyzeWithGemini(
       paidAmount,
       tipAmount,
       payerName,
-      upiTransactionId,
+      payeeName,
+      payeeHandle,
+      channel,
+      referenceIds,
       transactionDate,
       confidence,
       paidBelowTip,
@@ -580,7 +643,10 @@ function buildSummary({
   paidAmount,
   tipAmount,
   payerName,
-  upiTransactionId,
+  payeeName,
+  payeeHandle,
+  channel,
+  referenceIds,
   transactionDate,
   confidence,
   paidBelowTip,
@@ -590,7 +656,10 @@ function buildSummary({
   paidAmount: number | null;
   tipAmount: number;
   payerName: string | null;
-  upiTransactionId: string | null;
+  payeeName: string | null;
+  payeeHandle: string | null;
+  channel: string;
+  referenceIds: string[];
   transactionDate: string | null;
   confidence: string | undefined;
   paidBelowTip: boolean;
@@ -610,11 +679,19 @@ function buildSummary({
   }
 
   if (payerName) {
-    parts.push(`payer “${payerName}”`);
+    parts.push(`from ${payerName}`);
   }
 
-  if (upiTransactionId) {
-    parts.push(`ref ${upiTransactionId}`);
+  if (payeeHandle || payeeName) {
+    parts.push(`to ${payeeHandle ?? payeeName}`);
+  }
+
+  if (channel && channel !== "unknown") {
+    parts.push(`via ${channel}`);
+  }
+
+  if (referenceIds.length > 0) {
+    parts.push(`ref ${referenceIds.slice(0, 2).join(", ")}`);
   }
 
   if (transactionDate) {

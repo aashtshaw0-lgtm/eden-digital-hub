@@ -28,6 +28,37 @@ export default function Credits() {
         </p>
       </header>
 
+      {credits !== undefined && credits.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.1 }}
+          className="mt-10 flex flex-wrap gap-2.5"
+        >
+          <span className="clay-sm rounded-full px-3.5 py-1.5 text-xs font-medium text-muted-foreground">
+            {credits.length} {credits.length === 1 ? "name" : "names"}
+          </span>
+          {(["legendary", "premium", "standard"] as const).map((tier) => {
+            const count = credits.filter((c) => c.tier === tier).length;
+            if (count === 0) return null;
+            const meta = tierMeta(tier === "standard" ? 0 : tier === "premium" ? PREMIUM_THRESHOLD : LEGENDARY_THRESHOLD);
+            const Icon = meta.icon;
+            return (
+              <span
+                key={tier}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold",
+                  meta.chip,
+                )}
+              >
+                <Icon className="size-3" />
+                {count} {meta.title}
+              </span>
+            );
+          })}
+        </motion.div>
+      )}
+
       {credits === undefined ? (
         <div className="mt-12 space-y-3">
           {[0, 1, 2, 3].map((i) => (
@@ -66,7 +97,7 @@ export default function Credits() {
                   delay: Math.min(index * 0.12, 1.2),
                 }}
                 className={cn(
-                  "clay flex flex-wrap items-center gap-5 p-6 ring-1 transition-shadow",
+                  "clay clay-press flex flex-wrap items-center gap-5 p-6 ring-1 transition-shadow",
                   tier.ring,
                   tier.glow,
                 )}

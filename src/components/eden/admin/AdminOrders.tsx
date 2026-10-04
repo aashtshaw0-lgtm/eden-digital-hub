@@ -44,6 +44,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export function AdminOrders() {
   const orders = useQuery(api.orders.listAll);
+  const readiness = useQuery(api.orders.paymentReadiness);
   const updateStatus = useMutation(api.orders.updateStatus);
   const reviewProof = useMutation(api.orders.reviewProof);
   const confirmPayment = useMutation(api.orders.confirmPayment);
@@ -157,6 +158,35 @@ export function AdminOrders() {
         className="hidden"
         onChange={(e) => void onProofFile(e.target.files?.[0])}
       />
+
+      {/* Payment readiness — clients cannot pay an account that does not exist */}
+      <AnimatePresence>
+        {readiness && !readiness.upiConfigured && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-5 overflow-hidden"
+          >
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-amber-500/12 px-4 py-3.5 text-amber-900 ring-1 ring-amber-500/40 dark:text-amber-200">
+              <CircleAlert className="size-5 shrink-0" />
+              <div className="min-w-[220px] flex-1">
+                <p className="text-sm font-semibold">No UPI ID configured yet</p>
+                <p className="mt-0.5 text-xs">
+                  Clients see a placeholder QR at checkout, so they cannot pay you. Set the UPI
+                  ID (and ideally the QR image) under Website before taking orders.
+                </p>
+              </div>
+              <a
+                href="#website"
+                className="clay-sm rounded-full px-3.5 py-2 text-xs font-semibold text-amber-900 hover:underline dark:text-amber-100"
+              >
+                Open Website settings
+              </a>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Counts */}
       <div className="mb-5 grid gap-3 sm:grid-cols-3">
