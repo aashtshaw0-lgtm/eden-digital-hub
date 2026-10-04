@@ -547,8 +547,6 @@ async function analyzeWithGemini(
     ? parsed.referenceIds.filter((id): id is string => typeof id === "string")
     : [];
   const transactionDate = typeof parsed.transactionDate === "string" ? parsed.transactionDate : null;
-  const upiTransactionId =
-    typeof parsed.upiTransactionId === "string" ? parsed.upiTransactionId : null;
   const confidence = parsed.confidence as string | undefined;
   const ocrIssues = Array.isArray(parsed.ocrIssues) ? parsed.ocrIssues : [];
 
@@ -576,24 +574,28 @@ async function analyzeWithGemini(
     );
   }
 
-  // A wallet handle or a non-UPI rail means the money did not obviously land in
-  // the studio account, so the amount alone is not proof of payment.
-  if (channel === "wallet") {
-    stillNeeded.push(
-      "This looks like a wallet-to-wallet transfer, not a UPI payment to the studio — ask for the UPI receipt showing payment to Eden's UPI ID.",
-    );
-  } else if (payeeHandle && !studioUpiId) {
+  // The destination handle is the real question, not the rail. App wallets such
+  // as FamApp (@fam) are genuine UPI PSPs, so a transfer to the studio handle
+  // is valid proof even when the sender's app calls it a wallet transfer.
+  // What matters is whether the money was sent to *this* studio.
+  if (payeeHandle && !studioUpiId) {
     stillNeeded.push(
       `Paid to “${payeeHandle}” but Eden has no UPI ID configured yet — set one under Website settings before approving.`,
     );
-  } else if (payeeHandle && studioUpiId && payeeHandle.toLowerCase() !== studioUpiId.toLowerCase()) {
+  } else if (payeeHandle && studioUpiId && !sameUpiHandle(payeeHandle, studioUpiId)) {
     stillNeeded.push(
       `Paid to “${payeeHandle}” instead of the studio UPI ID “${studioUpiId}” — the money has not reached Eden.`,
     );
+  } else if (!payeeHandle && channel === "unknown") {
+    stillNeeded.push(
+      "Could not read the receiving UPI handle — ask the client to open the transaction details and screenshot the “Paid to” line.",
+    );
   }
 
-  if (upiTransactionId === null) {
-    stillNeeded.push("No UPI transaction ID is visible — ask for a screenshot that shows the transaction reference.");
+  if (referenceIds.length === 0) {
+    stillNeeded.push(
+      "No UPI reference or transaction ID is visible — ask for the transaction details screen, not just the confirmation banner.",
+    );
   }
 
   if (confidence === "low") {
@@ -628,6 +630,18 @@ async function analyzeWithGemini(
     tipAmount,
     isSpeedPay,
   };
+}
+
+/**
+ * Compares two UPI handles case-insensitively.
+ *
+ * Apps often render the payee with or without the surrounding name, and some
+ * show the handle split across two lines, so surrounding whitespace and stray
+ * whitespace inside the handle are ignored.
+ */
+function sameUpiHandle(a: string, b: string): boolean {
+  const norm = (value: string) => value.replace(/\s+/g, "").toLowerCase();
+  return norm(a) === norm(b);
 }
 
 function isDateWithinDays(dateString: string | null, maxDaysAgo: number): boolean {
