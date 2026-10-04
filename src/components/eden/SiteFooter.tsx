@@ -1,7 +1,7 @@
 import { useSettings } from "@/context/SettingsProvider";
 import { OPEN_COOKIE_CONSENT_EVENT } from "@/components/eden/CookieConsent";
+import { EdenWordmark } from "@/components/eden/EdenWordmark";
 import { Instagram, Linkedin, Link2, Twitter } from "lucide-react";
-import { Sprout } from "lucide-react";
 import { Link } from "react-router";
 
 export function SiteFooter() {
@@ -17,15 +17,10 @@ export function SiteFooter() {
   return (
     <footer className="mt-20 border-t border-border/70 px-4 py-10 sm:px-6">
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-6 sm:flex-row">
-        <div className="flex items-center gap-2">
-          <span className="tint flex size-9 items-center justify-center rounded-xl">
-            <Sprout className="size-5" />
-          </span>
-          <div>
-            <p className="font-display text-base font-semibold leading-tight">Eden</p>
-            <p className="text-xs text-muted-foreground">Digital design & management</p>
-          </div>
-        </div>
+        <Link to="/" className="flex flex-col items-center gap-1 sm:items-start">
+          <EdenWordmark className="w-32" />
+          <p className="text-xs text-muted-foreground">Digital design &amp; management</p>
+        </Link>
 
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
           <Link to="/services" className="hover:text-foreground">Services</Link>

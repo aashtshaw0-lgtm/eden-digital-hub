@@ -2,36 +2,46 @@ import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { requireAdmin } from "./lib/rbac";
+import {
+  assertValidShares,
+  DEFAULT_COLLABORATOR_PERCENT,
+  DEFAULT_WEB_OWNER_PERCENT,
+  MAX_OUTSIDE_SHARE_PERCENT,
+  splitProductSale,
+  splitServiceSale,
+} from "./lib/split";
 
 /**
  * Handmade products, the people who make them with the studio, and the split.
  *
- * A product can be made by the studio alone or with a collaborator. When a
- * collaborator is attached, `collaboratorSharePercent` is snapshotted onto the
- * product at save time, so changing their default later never rewrites the
- * terms of a sale that has already happened.
+ * A product is made by the studio alone or with **one** collaborator — the
+ * schema holds a single `collaboratorId`, so there is no way to attach a second
+ * or third maker to the same item.
  *
- * Every sale writes a `productSales` row with both halves of the money
- * recorded. Payouts are then a fact you can read, not a number recomputed from
- * whatever the product happens to cost today.
+ * A sale splits three ways: the maker, the studio, and the web owner who runs
+ * the site. Both percentages are snapshotted onto the product at save time, so
+ * renegotiating a rate later never rewrites the terms of a sale that has
+ * already happened.
+ *
+ * Every sale writes a `productSales` row with all three shares recorded.
+ * Payouts are then a fact you can read, not a number recomputed from whatever
+ * the product happens to cost today.
  */
 
 /** Nobody's cut can exceed this, and the studio always keeps something. */
-export const MAX_SHARE_PERCENT = 90;
+export const MAX_SHARE_PERCENT = MAX_OUTSIDE_SHARE_PERCENT;
 
-/** Rounds to whole rupees — the split must always add up exactly. */
+/** Splits a product price the way a recorded sale would. */
 function splitAmounts(
   gross: number,
   collaboratorPercent: number | undefined,
-): { collaboratorShare: number; studioShare: number } {
-  const clamped = Math.max(
-    0,
-    Math.min(collaboratorPercent ?? 0, MAX_SHARE_PERCENT),
+  webOwnerPercent: number | undefined,
+) {
+  return splitProductSale(
+    gross,
+    collaboratorPercent ?? 0,
+    webOwnerPercent ?? DEFAULT_WEB_OWNER_PERCENT,
   );
-  const collaboratorShare = Math.round((gross * clamped) / 100);
-  // Studio share is derived from the same integer total, so the two halves can
-  // never drift apart by a rupee.
-  return { collaboratorShare, studioShare: gross - collaboratorShare };
 }
 
 // ── Collaborators ─────────────────────────────────────────────────────────
@@ -95,7 +105,7 @@ export const addCollaborator = mutation({
     const trimmed = args.name.trim();
     if (!trimmed) throw new Error("A collaborator needs a name.");
 
-    const share = args.sharePercent ?? 0;
+    const share = args.sharePercent ?? DEFAULT_COLLABORATOR_PERCENT;
     if (!Number.isFinite(share) || share < 0 || share > MAX_SHARE_PERCENT) {
       throw new Error(`Their cut must be between 0 and ${MAX_SHARE_PERCENT}%.`);
     }
@@ -190,9 +200,10 @@ export const listForAdmin = query({
       const person = product.collaboratorId
         ? byId.get(product.collaboratorId)
         : undefined;
-      const { collaboratorShare, studioShare } = splitAmounts(
+      const split = splitAmounts(
         product.price,
         product.collaboratorId ? product.collaboratorSharePercent : 0,
+        product.webOwnerSharePercent,
       );
       const sold = soldByProduct.get(product._id as string);
       return {
@@ -201,7 +212,7 @@ export const listForAdmin = query({
         imageUrl: product.imageStorageId
           ? null // resolved per-id below, to avoid N storage lookups in the list
           : undefined,
-        perSale: { collaboratorShare, studioShare },
+        perSale: split,
         soldCount: sold?.count ?? 0,
         grossEarned: sold?.gross ?? 0,
       };
@@ -267,6 +278,8 @@ export const addProduct = mutation({
     collaboratorId: v.optional(v.id("collaborators")),
     /** Overrides the collaborator's default cut for this product. */
     collaboratorSharePercent: v.optional(v.number()),
+    /** Site commission on this product. Defaults to 20%. */
+    webOwnerSharePercent: v.optional(v.number()),
     imageStorageId: v.optional(v.id("_storage")),
     status: v.optional(v.union(v.literal("draft"), v.literal("live"))),
   },
@@ -284,12 +297,21 @@ export const addProduct = mutation({
     if (args.collaboratorId) {
       const person = await ctx.db.get(args.collaboratorId);
       if (!person) throw new Error("That collaborator no longer exists.");
-      sharePercent = args.collaboratorSharePercent ?? person.sharePercent ?? 0;
-      if (sharePercent < 0 || sharePercent > MAX_SHARE_PERCENT) {
-        throw new Error(`Their cut must be between 0 and ${MAX_SHARE_PERCENT}%.`);
-      }
-      sharePercent = Math.round(sharePercent);
+      sharePercent = Math.round(
+        args.collaboratorSharePercent ??
+          person.sharePercent ??
+          DEFAULT_COLLABORATOR_PERCENT,
+      );
+    } else {
+      sharePercent = undefined;
     }
+
+    const webOwnerSharePercent = Math.round(
+      args.webOwnerSharePercent ?? DEFAULT_WEB_OWNER_PERCENT,
+    );
+    // A studio-only product still owes the site commission, so validate against
+    // 0 rather than skipping the check when there is no maker.
+    assertValidShares(sharePercent ?? 0, webOwnerSharePercent);
 
     return await ctx.db.insert("products", {
       name: trimmed,
@@ -297,6 +319,7 @@ export const addProduct = mutation({
       price: Math.round(args.price),
       collaboratorId: args.collaboratorId,
       collaboratorSharePercent: sharePercent,
+      webOwnerSharePercent,
       imageStorageId: args.imageStorageId,
       status: args.status ?? "draft",
       createdAt: Date.now(),
@@ -310,8 +333,9 @@ export const updateProduct = mutation({
     name: v.optional(v.string()),
     price: v.optional(v.number()),
     description: v.optional(v.string()),
-    collaboratorId: v.optional(v.id("collaborators")),
+    collaboratorId: v.optional(v.union(v.id("collaborators"), v.null())),
     collaboratorSharePercent: v.optional(v.number()),
+    webOwnerSharePercent: v.optional(v.number()),
     status: v.optional(v.union(v.literal("draft"), v.literal("live"))),
   },
   handler: async (ctx, args) => {
@@ -332,16 +356,28 @@ export const updateProduct = mutation({
     }
     if (args.status !== undefined) patch.status = args.status;
 
+    let nextCollaboratorShare = product.collaboratorSharePercent ?? 0;
+    let hasCollaborator = Boolean(product.collaboratorId);
+
+    // `null` is the explicit "remove the maker" signal. `undefined` means the
+    // caller did not mention it, so it must be left alone — passing `undefined`
+    // to `db.patch` is a no-op, which would silently fail to clear the field.
     if (args.collaboratorId !== undefined) {
-      patch.collaboratorId = args.collaboratorId;
-      if (args.collaboratorId) {
-        const person = await ctx.db.get(args.collaboratorId);
+      const nextId = args.collaboratorId ?? undefined;
+      patch.collaboratorId = nextId;
+      hasCollaborator = Boolean(nextId);
+      if (nextId) {
+        const person = await ctx.db.get(nextId);
         if (!person) throw new Error("That collaborator no longer exists.");
-        patch.collaboratorSharePercent = Math.round(
-          args.collaboratorSharePercent ?? person.sharePercent ?? 0,
+        nextCollaboratorShare = Math.round(
+          args.collaboratorSharePercent ??
+            person.sharePercent ??
+            DEFAULT_COLLABORATOR_PERCENT,
         );
+        patch.collaboratorSharePercent = nextCollaboratorShare;
       } else {
         patch.collaboratorSharePercent = undefined;
+        nextCollaboratorShare = 0;
       }
     } else if (args.collaboratorSharePercent !== undefined) {
       if (
@@ -350,8 +386,31 @@ export const updateProduct = mutation({
       ) {
         throw new Error(`Their cut must be between 0 and ${MAX_SHARE_PERCENT}%.`);
       }
-      patch.collaboratorSharePercent = Math.round(args.collaboratorSharePercent);
+      nextCollaboratorShare = Math.round(args.collaboratorSharePercent);
+      patch.collaboratorSharePercent = nextCollaboratorShare;
     }
+
+    if (!hasCollaborator) {
+      // No maker on this product, so only the site commission applies.
+      nextCollaboratorShare = 0;
+    }
+
+    if (args.webOwnerSharePercent !== undefined) {
+      if (
+        args.webOwnerSharePercent < 0 ||
+        args.webOwnerSharePercent > 100
+      ) {
+        throw new Error("The site commission must be between 0 and 100%.");
+      }
+      patch.webOwnerSharePercent = Math.round(args.webOwnerSharePercent);
+    }
+
+    assertValidShares(
+      nextCollaboratorShare,
+      (patch.webOwnerSharePercent as number | undefined) ??
+        product.webOwnerSharePercent ??
+        DEFAULT_WEB_OWNER_PERCENT,
+    );
 
     await ctx.db.patch(args.productId, patch);
     return null;
@@ -375,9 +434,9 @@ export const removeProduct = mutation({
 /**
  * Records a product sale and the split it owes.
  *
- * Both halves are computed once, here, and stored — so what a collaborator is
- * owed is a recorded fact rather than something that changes if the product
- * price or their default percentage is edited later.
+ * All three shares are computed once, here, and stored — so what a collaborator
+ * and the web owner are owed is a recorded fact rather than something that
+ * changes if the product price or a percentage is edited later.
  */
 export const recordSale = mutation({
   args: {
@@ -398,9 +457,10 @@ export const recordSale = mutation({
     const person = product.collaboratorId
       ? await ctx.db.get(product.collaboratorId)
       : null;
-    const { collaboratorShare, studioShare } = splitAmounts(
+    const split = splitAmounts(
       gross,
       product.collaboratorId ? product.collaboratorSharePercent : 0,
+      product.webOwnerSharePercent,
     );
 
     return await ctx.db.insert("productSales", {
@@ -409,8 +469,9 @@ export const recordSale = mutation({
       collaboratorId: person?._id,
       collaboratorName: person?.name,
       gross,
-      collaboratorShare,
-      studioShare,
+      collaboratorShare: split.collaboratorShare,
+      studioShare: split.studioShare,
+      webOwnerShare: split.webOwnerShare,
       orderId: args.orderId,
       createdAt: Date.now(),
     });
@@ -418,8 +479,9 @@ export const recordSale = mutation({
 });
 
 /**
- * The smart dashboard: where the money came from, what the studio kept, and
- * what each collaborator is owed.
+ * The smart dashboard: where the money came from, what the studio kept, what
+ * each collaborator is owed, and what the site owner earned — across both
+ * handmade products and service orders.
  */
 export const earnings = query({
   args: {},
@@ -431,6 +493,28 @@ export const earnings = query({
     const gross = sales.reduce((sum, s) => sum + s.gross, 0);
     const owed = sales.reduce((sum, s) => sum + s.collaboratorShare, 0);
     const kept = sales.reduce((sum, s) => sum + s.studioShare, 0);
+    // Rows written before the third split existed have no web-owner share, so
+    // `?? 0` keeps the total honest instead of turning undefined into NaN.
+    const productWebOwner = sales.reduce(
+      (sum, s) => sum + (s.webOwnerShare ?? 0),
+      0,
+    );
+
+    // Service orders: the site commission applies here too. Unpaid and declined
+    // orders are excluded — nothing is owed on money that never arrived.
+    const serviceOrders = await ctx.db
+      .query("orders")
+      .withIndex("by_status_created")
+      .collect();
+    const paidOrders = serviceOrders.filter(
+      (o) => o.status === "approved" || o.status === "completed",
+    );
+    const serviceGross = paidOrders.reduce(
+      (sum, o) => sum + Math.max(0, o.totalPrice ?? 0),
+      0,
+    );
+    const serviceSplit = splitServiceSale(serviceGross);
+    const serviceWebOwner = serviceSplit.webOwnerShare;
 
     const byCollaborator = collaborators
       .map((person) => {
@@ -455,6 +539,11 @@ export const earnings = query({
         owedToCollaborators: owed,
         keptByStudio: kept,
         studioMarginPercent: gross > 0 ? Math.round((kept / gross) * 100) : 0,
+        productWebOwnerShare: productWebOwner,
+        serviceGross,
+        serviceWebOwnerShare: serviceWebOwner,
+        webOwnerTotal: productWebOwner + serviceWebOwner,
+        totalRevenue: gross + serviceGross,
       },
       byCollaborator,
       recentSales: sales
@@ -467,6 +556,7 @@ export const earnings = query({
           gross: s.gross,
           collaboratorShare: s.collaboratorShare,
           studioShare: s.studioShare,
+          webOwnerShare: s.webOwnerShare ?? 0,
           createdAt: s.createdAt,
         })),
     };

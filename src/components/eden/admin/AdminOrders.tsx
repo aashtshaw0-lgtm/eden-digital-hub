@@ -320,6 +320,49 @@ export function AdminOrders() {
 
             <AlertBadges order={o} />
 
+            {/* The mobile card used to stop at the status pill, so on a phone
+                there was no way to read a receipt or type in what it said —
+                those actions existed only in the desktop table. */}
+            <div className="flex flex-wrap items-center gap-2">
+              {!o.proof && (
+                <button
+                  onClick={() => pickProof(o)}
+                  disabled={uploadingFor === o._id}
+                  className="clay-sm inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-primary"
+                >
+                  {uploadingFor === o._id ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <ImageUp className="size-3" />
+                  )}
+                  Attach proof
+                </button>
+              )}
+              {o.proof && !o.review && (
+                <button
+                  onClick={() => void runAiReview(o.proof!._id)}
+                  disabled={reviewing === o.proof?._id}
+                  className="clay-sm inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-primary hover:underline"
+                >
+                  {reviewing === o.proof?._id ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <ScanLine className="size-3" />
+                  )}
+                  Verify receipt
+                </button>
+              )}
+            </div>
+
+            {/* Full width and labelled, because this is the one control that
+                turns "we could not read it" into a real shortfall number. */}
+            <RecordAmountBox
+              order={o}
+              onRecord={(v) => void recordAmount(o, v)}
+              recording={recording === o._id}
+              block
+            />
+
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setSelected(o)}
@@ -448,7 +491,13 @@ export function AdminOrders() {
               </button>
             </div>
 
-            {selected.proof && <ReviewPanel order={selected} />}
+            {selected.proof && (
+              <ReviewPanel
+                order={selected}
+                onRecord={(value) => void recordAmount(selected, value)}
+                recording={recording === selected._id}
+              />
+            )}
 
             {selected.proof && <DecisionPanel order={selected} />}
 
@@ -644,39 +693,93 @@ function PaidCell({
         </button>
       )}
 
-      {/* The escape hatch: the studio can see the screenshot even when the
-          automatic read cannot, and typing the figure in is what turns
-          "amount not read" into a real "short by Rs X" warning. */}
       {order.proof && !known && order.status === "pending" && (
-        <form
-          className="flex items-center gap-1"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const input = e.currentTarget.elements.namedItem("amount") as HTMLInputElement | null;
-            if (input) onRecord(input.value);
-          }}
-        >
-          <input
-            name="amount"
-            type="number"
-            min={0}
-            inputMode="numeric"
-            placeholder="₹ paid"
-            aria-label={`Amount paid on ${order.serviceName} order`}
-            className="clay-inset w-20 rounded-lg px-2 py-1 text-xs tabular-nums outline-none focus:ring-2 focus:ring-primary/40"
-          />
-          <button
-            type="submit"
-            disabled={recording}
-            title="Type what the receipt shows, then tap to record it"
-            className="clay-sm inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary hover:underline disabled:opacity-50"
-          >
-            {recording ? <Loader2 className="size-3 animate-spin" /> : <Receipt className="size-3" />}
-            Record
-          </button>
-        </form>
+        <RecordAmountBox order={order} onRecord={onRecord} recording={recording} />
       )}
     </div>
+  );
+}
+
+/**
+ * Lets the studio type what the receipt actually says.
+ *
+ * Shared by the desktop table, the mobile card and the proof panel — it used to
+ * exist only in the table, which left phones with no way to record an amount at
+ * all. Typing here is what turns "Amount not read" into a real
+ * "Short ₹1,631 (₹55 of ₹1,686)" warning, which is the whole point of the
+ * board: it must never say a paying client still owes money that arrived.
+ */
+function RecordAmountBox({
+  order,
+  onRecord,
+  recording,
+  block = false,
+}: {
+  order: Order;
+  onRecord: (value: string) => void;
+  recording: boolean;
+  /** Full-width layout for the mobile card, where the inline one is too small. */
+  block?: boolean;
+}) {
+  const { known } = paymentState(order);
+  if (!order.proof || known || order.status !== "pending") return null;
+
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const input = e.currentTarget.elements.namedItem("amount") as HTMLInputElement | null;
+    if (input) onRecord(input.value);
+  };
+
+  const input = (
+    <input
+      name="amount"
+      type="number"
+      min={0}
+      inputMode="numeric"
+      placeholder={`₹ paid · order is ${inr(order.totalPrice)}`}
+      aria-label={`Amount paid on the ${order.serviceName} order`}
+      className={cn(
+        "clay-inset rounded-lg px-3 py-2 text-sm tabular-nums outline-none focus:ring-2 focus:ring-primary/40",
+        block ? "min-w-0 flex-1" : "w-24",
+      )}
+    />
+  );
+
+  const button = (
+    <button
+      type="submit"
+      disabled={recording}
+      className="clay-sm inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-50"
+    >
+      {recording ? <Loader2 className="size-3 animate-spin" /> : <Receipt className="size-3" />}
+      Record
+    </button>
+  );
+
+  if (!block) {
+    return (
+      <form className="flex items-center gap-1.5" onSubmit={submit}>
+        {input}
+        {button}
+      </form>
+    );
+  }
+
+  return (
+    <form
+      className="space-y-2 rounded-xl bg-amber-500/10 p-3 ring-1 ring-amber-500/30"
+      onSubmit={submit}
+    >
+      <p className="text-xs leading-snug text-amber-900 dark:text-amber-200">
+        <strong className="font-semibold">Read the receipt yourself.</strong> Look at the
+        screenshot under “Open &amp; decide”, then type the amount that was actually debited here.
+        That turns this order into a real shortfall warning instead of “Amount not read”.
+      </p>
+      <div className="flex items-center gap-2">
+        {input}
+        {button}
+      </div>
+    </form>
   );
 }
 
@@ -879,7 +982,15 @@ function DecisionPanel({ order }: { order: Order }) {
   );
 }
 
-function ReviewPanel({ order }: { order: Order }) {
+function ReviewPanel({
+  order,
+  onRecord,
+  recording,
+}: {
+  order: Order;
+  onRecord: (value: string) => void;
+  recording: boolean;
+}) {
   const url = useQuery(api.portfolio.fileUrl, { storageId: order.proof!.storageId });
   const review = order.review;
 
@@ -894,10 +1005,18 @@ function ReviewPanel({ order }: { order: Order }) {
           <img
             src={url}
             alt="Payment proof"
-            className="max-h-56 w-full rounded-xl border border-border/60 object-contain"
+            className="max-h-72 w-full rounded-xl border border-border/60 object-contain"
           />
         </a>
       )}
+
+      {/* Directly under the screenshot, because that is where the number is. */}
+      <RecordAmountBox
+        order={order}
+        onRecord={onRecord}
+        recording={recording}
+        block
+      />
 
       {/* What the client claimed when they submitted */}
       <dl className="grid grid-cols-2 gap-2 text-xs">

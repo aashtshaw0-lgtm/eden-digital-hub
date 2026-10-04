@@ -4,6 +4,7 @@ import { useSeo } from "@/lib/seo";
 import { useSettings } from "@/context/SettingsProvider";
 import { serviceIcon } from "@/components/eden/serviceIcons";
 import { Portfolio3D } from "@/components/eden/Portfolio3D";
+import { EdenWordmark } from "@/components/eden/EdenWordmark";
 import { Reveal } from "@/components/eden/Reveal";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
@@ -38,6 +39,16 @@ export default function Landing() {
 
   return (
     <main className="min-h-dvh">
+      {/* ── Wordmark ────────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.04 }}
+        className="flex justify-center px-4 pt-28 sm:pt-36"
+      >
+        <EdenWordmark className="w-56 sm:w-72" />
+      </motion.div>
+
       {/* ── Hero ─────────────────────────────────────────── */}
       <section className="mx-auto flex w-full max-w-6xl flex-col items-center px-4 pb-16 pt-32 text-center sm:px-6 sm:pt-40">
         <motion.span

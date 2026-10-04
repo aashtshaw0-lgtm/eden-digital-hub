@@ -163,8 +163,12 @@ const schema = defineSchema(
     /**
      * A physical product the studio sells, optionally made with a collaborator.
      *
-     * `collaboratorSharePercent` is snapshotted onto the product so changing a
-     * collaborator's default later never rewrites the split on past sales.
+     * `collaboratorId` is a single id, so a product can name at most **one**
+     * maker — there is no way to attach a second or third person.
+     *
+     * `collaboratorSharePercent` and `webOwnerSharePercent` are snapshotted onto
+     * the product so renegotiating a rate later never rewrites the split on
+     * sales that already happened.
      */
     products: defineTable({
       name: v.string(),
@@ -173,8 +177,10 @@ const schema = defineSchema(
       price: v.number(),
       /** Optional maker. Undefined means the studio makes it alone. */
       collaboratorId: v.optional(v.id("collaborators")),
-      /** Snapshot of the collaborator's cut at the time this product was saved. */
+      /** Snapshot of the maker's cut at the time this product was saved. */
       collaboratorSharePercent: v.optional(v.number()),
+      /** Snapshot of the site commission at the time this product was saved. */
+      webOwnerSharePercent: v.optional(v.number()),
       imageStorageId: v.optional(v.id("_storage")),
       /** "live" shows it in the storefront; "draft" hides it. */
       status: v.optional(v.union(v.literal("draft"), v.literal("live"))),
@@ -187,6 +193,8 @@ const schema = defineSchema(
      * One row per sale of a product, so what each collaborator earned is a fact
      * in the database rather than a number recomputed from whatever the product
      * happens to be priced at today.
+     *
+     * The three shares always sum to `gross`.
      */
     productSales: defineTable({
       productId: v.id("products"),
@@ -195,10 +203,12 @@ const schema = defineSchema(
       collaboratorName: v.optional(v.string()),
       /** What the customer paid. */
       gross: v.number(),
-      /** Rupees owed to the collaborator for this sale. */
+      /** Rupees owed to the maker for this sale. */
       collaboratorShare: v.number(),
       /** What the studio kept. */
       studioShare: v.number(),
+      /** Rupees owed to the web owner. */
+      webOwnerShare: v.optional(v.number()),
       orderId: v.optional(v.id("orders")),
       createdAt: v.number(),
     })

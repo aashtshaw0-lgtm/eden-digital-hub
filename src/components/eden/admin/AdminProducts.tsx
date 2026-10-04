@@ -16,14 +16,20 @@ import {
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
+import { splitProductSale } from "@/convex/lib/split";
 
 /**
  * Products, collaborators and the money between them.
  *
- * The split is the part worth reading twice: a collaborator's percentage is
- * snapshotted onto the product when it is saved, and each sale records both
- * halves as they were at that moment. Editing a percentage later therefore
- * never rewrites what someone has already earned.
+ * A product has exactly **one** maker or none — there is a single "Made with"
+ * dropdown, and the schema stores a single `collaboratorId`, so a second or
+ * third person cannot be attached to the same item even by calling the mutation
+ * directly.
+ *
+ * A sale splits three ways: the maker, the studio, and the web owner. Both
+ * percentages are snapshotted onto the product when it is saved and each sale
+ * records all three shares as they were at that moment, so editing a percentage
+ * later never rewrites what someone has already earned.
  */
 export function AdminProducts() {
   const products = useQuery(api.products.listForAdmin);
@@ -51,6 +57,7 @@ export function AdminProducts() {
   const [productDesc, setProductDesc] = useState("");
   const [productMaker, setProductMaker] = useState("");
   const [productShare, setProductShare] = useState("");
+  const [productWebOwnerShare, setProductWebOwnerShare] = useState("20");
   const [productImage, setProductImage] = useState<Id<"_storage"> | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
   const [editing, setEditing] = useState<Id<"products"> | null>(null);
@@ -95,6 +102,7 @@ export function AdminProducts() {
         description: productDesc || undefined,
         collaboratorId: (productMaker || undefined) as Id<"collaborators"> | undefined,
         collaboratorSharePercent: productMaker && productShare ? Number(productShare) : undefined,
+        webOwnerSharePercent: Number(productWebOwnerShare) || 0,
         imageStorageId: productImage ?? undefined,
         status: "live",
       });
@@ -162,6 +170,20 @@ export function AdminProducts() {
             />
           </div>
 
+          <div className="clay mt-3 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Site commission (you, as web owner)
+            </p>
+            <p className="font-display text-xl font-semibold tabular-nums">
+              {inr(earnings.totals.webOwnerTotal)}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {inr(earnings.totals.productWebOwnerShare)} from handmade products ·{" "}
+              {inr(earnings.totals.serviceWebOwnerShare)} from{" "}
+              {inr(earnings.totals.serviceGross)} of service orders
+            </p>
+          </div>
+
           {earnings.byCollaborator.length > 0 && (
             <div className="clay mt-3 overflow-hidden">
               <table className="w-full text-sm">
@@ -215,12 +237,15 @@ export function AdminProducts() {
                       </span>
                     )}
                   </span>
-                  <span className="flex items-center gap-3 text-xs tabular-nums">
+                  <span className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
                     <span className="text-muted-foreground">paid {inr(sale.gross)}</span>
                     <span className="font-semibold text-primary">you {inr(sale.studioShare)}</span>
                     {sale.collaboratorName && (
                       <span className="font-semibold">them {inr(sale.collaboratorShare)}</span>
                     )}
+                    <span className="font-semibold text-muted-foreground">
+                      site {inr(sale.webOwnerShare)}
+                    </span>
                   </span>
                 </li>
               ))}
@@ -329,8 +354,9 @@ export function AdminProducts() {
         <div>
           <h2 className="font-display text-lg font-semibold">Add a product</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Made by you alone, or with a collaborator. The split is locked in when you save, so
-            changing their default later never changes past sales.
+            One maker per product — leave &quot;Just the studio&quot; if nobody made it with
+            you. The split is locked in when you save, so changing a rate later never changes
+            past sales.
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -351,16 +377,22 @@ export function AdminProducts() {
               className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm tabular-nums outline-none focus:ring-2 focus:ring-primary/40"
             />
           </Field>
-          <Field label="Made with">
+          <Field label="Made with (one person)">
             <select
               value={productMaker}
-              onChange={(e) => setProductMaker(e.target.value)}
+              onChange={(e) => {
+                setProductMaker(e.target.value);
+                // Pre-fill their cut from the selected person's default so the
+                // 60/20/20 split is correct without retyping it.
+                const person = collaborators?.find((p) => p._id === e.target.value);
+                if (person) setProductShare(String(person.sharePercent ?? 60));
+              }}
               className="clay-inset w-full cursor-pointer rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
             >
               <option value="">Just the studio</option>
               {collaborators?.map((p) => (
                 <option key={p._id} value={p._id}>
-                  {p.name} ({p.sharePercent ?? 0}%)
+                  {p.name} ({p.sharePercent ?? 60}%)
                 </option>
               ))}
             </select>
@@ -372,7 +404,18 @@ export function AdminProducts() {
               max={90}
               value={productShare}
               onChange={(e) => setProductShare(e.target.value)}
-              placeholder={productMaker ? "same as their default" : ""}
+              placeholder={productMaker ? "same as their default" : "—"}
+              disabled={!productMaker}
+              className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm tabular-nums outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+            />
+          </Field>
+          <Field label="Site commission (%)">
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={productWebOwnerShare}
+              onChange={(e) => setProductWebOwnerShare(e.target.value)}
               className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm tabular-nums outline-none focus:ring-2 focus:ring-primary/40"
             />
           </Field>
@@ -401,6 +444,18 @@ export function AdminProducts() {
             />
           </Field>
         </div>
+        <SplitPreview
+          price={productPrice}
+          collaboratorPercent={
+            productMaker
+              ? productShare === ""
+                ? (collaborators?.find((p) => p._id === productMaker)?.sharePercent ?? 60)
+                : Number(productShare)
+              : 0
+          }
+          webOwnerPercent={Number(productWebOwnerShare) || 0}
+          makerName={collaborators?.find((p) => p._id === productMaker)?.name}
+        />
         <button
           type="submit"
           disabled={savingProduct}
@@ -456,6 +511,7 @@ export function AdminProducts() {
                         {product.collaboratorName
                           ? `With ${product.collaboratorName} · they take ${product.collaboratorSharePercent ?? 0}%`
                           : "Made by the studio"}
+                        {` · site ${product.webOwnerSharePercent ?? 20}%`}
                         {product.soldCount > 0 && ` · ${product.soldCount} sold`}
                       </p>
                     </div>
@@ -467,7 +523,8 @@ export function AdminProducts() {
                     {product.collaboratorName && (
                       <span className="text-xs tabular-nums text-muted-foreground">
                         {inr(product.perSale.collaboratorShare)} theirs /{" "}
-                        {inr(product.perSale.studioShare)} yours
+                        {inr(product.perSale.studioShare)} studio /{" "}
+                        {inr(product.perSale.webOwnerShare)} site
                       </span>
                     )}
 
@@ -527,6 +584,60 @@ export function AdminProducts() {
   );
 }
 
+/**
+ * Shows exactly how one sale of this product would divide, before it is saved.
+ *
+ * The arithmetic is a local mirror of the server's `splitProductSale` so the
+ * admin sees the same numbers the sale row will contain. The server re-derives
+ * and re-validates on save, so a stale preview can never mis-record a payout.
+ */
+function SplitPreview({
+  price,
+  collaboratorPercent,
+  webOwnerPercent,
+  makerName,
+}: {
+  price: string;
+  collaboratorPercent: number;
+  webOwnerPercent: number;
+  makerName?: string;
+}) {
+  const gross = Math.round(Number(price));
+  if (!Number.isFinite(gross) || gross <= 0) return null;
+
+  const split = splitProductSale(gross, collaboratorPercent, webOwnerPercent);
+
+  return (
+    <div className="clay-inset rounded-xl p-3.5 text-sm">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        On a sale of {inr(gross)}
+      </p>
+      <ul className="space-y-1 tabular-nums">
+        {makerName && (
+          <li className="flex justify-between">
+            <span className="text-muted-foreground">
+              {makerName} ({collaboratorPercent}%)
+            </span>
+            <span className="font-semibold">{inr(split.collaboratorShare)}</span>
+          </li>
+        )}
+        <li className="flex justify-between">
+          <span className="text-muted-foreground">Studio ({100 - collaboratorPercent - webOwnerPercent}%)</span>
+          <span className="font-semibold text-primary">{inr(split.studioShare)}</span>
+        </li>
+        <li className="flex justify-between">
+          <span className="text-muted-foreground">Site commission ({webOwnerPercent}%)</span>
+          <span className="font-semibold">{inr(split.webOwnerShare)}</span>
+        </li>
+      </ul>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Adds up to {inr(split.collaboratorShare + split.studioShare + split.webOwnerShare)} — the
+        three shares always sum to the full price.
+      </p>
+    </div>
+  );
+}
+
 function MoneyCard({
   label,
   value,
@@ -581,12 +692,14 @@ function EditProduct({
     price: number;
     description?: string;
     collaboratorSharePercent?: number;
+    webOwnerSharePercent?: number;
   };
   onSave: (next: {
     name: string;
     price: number;
     description: string;
     collaboratorSharePercent: number;
+    webOwnerSharePercent: number;
   }) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -594,6 +707,9 @@ function EditProduct({
   const [price, setPrice] = useState(String(product.price));
   const [description, setDescription] = useState(product.description ?? "");
   const [share, setShare] = useState(String(product.collaboratorSharePercent ?? 0));
+  const [webOwnerShare, setWebOwnerShare] = useState(
+    String(product.webOwnerSharePercent ?? 20),
+  );
   const [busy, setBusy] = useState(false);
 
   return (
@@ -622,6 +738,16 @@ function EditProduct({
         max={90}
         value={share}
         onChange={(e) => setShare(e.target.value)}
+        title="Their cut"
+        className="clay-inset w-24 rounded-xl px-3 py-2 text-sm tabular-nums outline-none"
+      />
+      <input
+        type="number"
+        min={0}
+        max={100}
+        value={webOwnerShare}
+        onChange={(e) => setWebOwnerShare(e.target.value)}
+        title="Site commission"
         className="clay-inset w-24 rounded-xl px-3 py-2 text-sm tabular-nums outline-none"
       />
       <button
@@ -633,6 +759,7 @@ function EditProduct({
               price: Math.round(Number(price)),
               description,
               collaboratorSharePercent: Number(share),
+              webOwnerSharePercent: Number(webOwnerShare),
             });
           } catch (e) {
             toast.error(e instanceof Error ? e.message : "Update failed");
