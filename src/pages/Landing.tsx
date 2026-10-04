@@ -1,6 +1,7 @@
 import { api } from "@/convex/_generated/api";
 import { inr } from "@/lib/format";
 import { useSeo } from "@/lib/seo";
+import { useSettings } from "@/context/SettingsProvider";
 import { serviceIcon } from "@/components/eden/serviceIcons";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
@@ -8,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { Link } from "react-router";
 
-const ROTATING = ["with Eden", "by hand", "for keeps", "that converts"];
+const ROTATING_FALLBACK = ["with Eden", "by hand", "for keeps", "that converts"];
 
 export default function Landing() {
   useSeo({
@@ -19,13 +20,17 @@ export default function Landing() {
 
   const services = useQuery(api.catalog.listPublic);
   const portfolio = useQuery(api.portfolio.list);
+  const { heroLead, heroMode, heroAccent, heroAccentWords } = useSettings();
   const [wordIndex, setWordIndex] = useState(0);
   const [broken, setBroken] = useState<Set<string>>(new Set());
 
+  const words = heroAccentWords.length > 0 ? heroAccentWords : ROTATING_FALLBACK;
+
   useEffect(() => {
-    const t = setInterval(() => setWordIndex((i) => (i + 1) % ROTATING.length), 2600);
+    if (heroMode !== "rotating" || words.length < 2) return;
+    const t = setInterval(() => setWordIndex((i) => (i + 1) % words.length), 2600);
     return () => clearInterval(t);
-  }, []);
+  }, [heroMode, words.length]);
 
   const featured = useMemo(() => (services ?? []).slice(0, 4), [services]);
 
@@ -48,20 +53,24 @@ export default function Landing() {
           transition={{ delay: 0.08 }}
           className="font-display mt-6 max-w-3xl text-balance text-4xl font-semibold leading-[1.08] tracking-tight sm:text-6xl"
         >
-          Elevate your brand{" "}
-          <span className="relative inline-block text-primary">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.span
-                key={wordIndex}
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -14 }}
-                transition={{ duration: 0.35 }}
-                className="inline-block italic"
-              >
-                {ROTATING[wordIndex]}
-              </motion.span>
-            </AnimatePresence>
+          {heroLead}{" "}
+          <span className="relative inline-block text-emerald-700 dark:text-emerald-400">
+            {heroMode === "rotating" ? (
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={wordIndex}
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -14 }}
+                  transition={{ duration: 0.35 }}
+                  className="inline-block italic"
+                >
+                  {words[wordIndex]}
+                </motion.span>
+              </AnimatePresence>
+            ) : (
+              <span className="inline-block italic">{heroAccent}</span>
+            )}
           </span>
         </motion.h1>
 

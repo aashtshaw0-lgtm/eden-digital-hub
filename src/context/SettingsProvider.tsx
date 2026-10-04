@@ -8,6 +8,10 @@ export interface EdenSettings {
   backgroundColor: string;
   upiId: string;
   qrImageUrl?: string;
+  heroLead: string;
+  heroMode: "rotating" | "static";
+  heroAccent: string;
+  heroAccentWords: string[];
   socialLinks: {
     instagram: string;
     twitter: string;
@@ -20,6 +24,10 @@ const DEFAULTS: EdenSettings = {
   primaryColor: "#2f6b4f",
   backgroundColor: "#f6f2ea",
   upiId: "eden.payments@upi",
+  heroLead: "Elevate your brand",
+  heroMode: "rotating" as const,
+  heroAccent: "with Eden",
+  heroAccentWords: ["with Eden", "by hand", "for keeps", "that converts"],
   socialLinks: { instagram: "", twitter: "", behance: "", linkedin: "" },
 };
 
@@ -51,6 +59,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         backgroundColor: settings.backgroundColor,
         upiId: settings.upiId,
         qrImageUrl: settings.qrImageUrl ?? undefined,
+        heroLead: settings.heroLead,
+        heroMode: settings.heroMode,
+        heroAccent: settings.heroAccent,
+        heroAccentWords: settings.heroAccentWords,
         socialLinks: settings.socialLinks,
       }
     : DEFAULTS;

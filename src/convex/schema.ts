@@ -48,6 +48,13 @@ const schema = defineSchema(
     globalSettings: defineTable({
       primaryColor: v.optional(v.string()),
       backgroundColor: v.optional(v.string()),
+      /** Landing hero copy, editable from the admin console. */
+      heroLead: v.optional(v.string()),
+      /** "rotating" cycles the accent words; "static" shows heroAccent once. */
+      heroMode: v.optional(v.union(v.literal("rotating"), v.literal("static"))),
+      heroAccent: v.optional(v.string()),
+      /** Words the rotating accent cycles through. */
+      heroAccentWords: v.optional(v.array(v.string())),
       upiId: v.optional(v.string()),
       qrStorageId: v.optional(v.id("_storage")),
       socialLinks: v.optional(

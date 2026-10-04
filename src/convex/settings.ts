@@ -20,6 +20,13 @@ export const get = query({
       primaryColor: row?.primaryColor ?? DEFAULTS.primaryColor,
       backgroundColor: row?.backgroundColor ?? DEFAULTS.backgroundColor,
       upiId: row?.upiId ?? DEFAULTS.upiId,
+      heroLead: row?.heroLead ?? "Elevate your brand",
+      heroMode: row?.heroMode ?? "rotating",
+      heroAccent: row?.heroAccent ?? "with Eden",
+      heroAccentWords:
+        row?.heroAccentWords?.length
+          ? row.heroAccentWords
+          : ["with Eden", "by hand", "for keeps", "that converts"],
       qrImageUrl,
       socialLinks: {
         instagram: row?.socialLinks?.instagram ?? "",
@@ -42,6 +49,10 @@ export const update = mutation({
     twitter: v.optional(v.string()),
     behance: v.optional(v.string()),
     linkedin: v.optional(v.string()),
+    heroLead: v.optional(v.string()),
+    heroMode: v.optional(v.union(v.literal("rotating"), v.literal("static"))),
+    heroAccent: v.optional(v.string()),
+    heroAccentWords: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -50,6 +61,17 @@ export const update = mutation({
       ...(args.primaryColor !== undefined ? { primaryColor: args.primaryColor } : {}),
       ...(args.backgroundColor !== undefined ? { backgroundColor: args.backgroundColor } : {}),
       ...(args.upiId !== undefined ? { upiId: args.upiId } : {}),
+      ...(args.heroLead !== undefined ? { heroLead: args.heroLead } : {}),
+      ...(args.heroMode !== undefined ? { heroMode: args.heroMode } : {}),
+      ...(args.heroAccent !== undefined ? { heroAccent: args.heroAccent } : {}),
+      ...(args.heroAccentWords !== undefined
+        ? {
+            heroAccentWords: args.heroAccentWords
+              .map((w) => w.trim())
+              .filter(Boolean)
+              .slice(0, 8),
+          }
+        : {}),
       socialLinks: {
         instagram: args.instagram,
         twitter: args.twitter,

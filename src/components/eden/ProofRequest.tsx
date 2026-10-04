@@ -1,7 +1,8 @@
 import { api } from "@/convex/_generated/api";
 import { useSettings } from "@/context/SettingsProvider";
 import { inr } from "@/lib/format";
-import { useMutation } from "convex/react";
+import { useMutation, useAction } from "convex/react";
+import { uploadProofImage } from "@/lib/imageUpload";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Copy, Loader2, QrCode, ReceiptIndianRupee, Upload } from "lucide-react";
 import { useRef, useState } from "react";
@@ -31,6 +32,7 @@ export function ProofRequest({
   const { upiId, qrImageUrl } = useSettings();
   const generateProofUrl = useMutation(api.orders.generateProofUrl);
   const attachProof = useMutation(api.orders.attachProof);
+  const storeProofBytes = useAction(api.orders.storeProofBytes);
 
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -53,15 +55,12 @@ export function ProofRequest({
     if (!file) return;
     setUploading(true);
     try {
-      const url = await generateProofUrl({ orderId });
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": file.type || "image/jpeg" },
-        body: file,
+      const upload = await uploadProofImage(file, {
+        getUploadUrl: () => generateProofUrl({ orderId }),
+        sendBytes: (bytes) => storeProofBytes({ bytes }),
       });
-      if (!res.ok) throw new Error("Upload failed — please try again.");
-      const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
-      await attachProof({ orderId, storageId });
+      if (!upload.ok) throw new Error(upload.reason);
+      await attachProof({ orderId, storageId: upload.storageId as Id<"_storage"> });
       setDone(true);
       onUploaded?.();
       toast.success("Proof sent — we'll confirm it shortly.");

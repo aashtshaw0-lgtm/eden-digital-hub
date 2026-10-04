@@ -14,7 +14,8 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Copy, HeartHandshake, Loader2, QrCode, Sparkles, Trash2, Upload } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useAction } from "convex/react";
+import { uploadProofImage } from "@/lib/imageUpload";
 import { Link } from "react-router";
 import { toast } from "sonner";
 
@@ -46,6 +47,7 @@ export default function Checkout() {
   const { upiId, qrImageUrl } = useSettings();
   const createWithProof = useMutation(api.orders.createWithProof);
   const generateProofUrl = useMutation(api.orders.generateUploadUrl);
+  const storeProofBytes = useAction(api.orders.storeProofBytes);
   const [paying, setPaying] = useState(false);
   const [copied, setCopied] = useState(false);
   const [tipAmount, setTipAmount] = useState(0);
@@ -84,36 +86,14 @@ export default function Checkout() {
     setPaying(true);
     const created: CreatedOrder[] = [];
     try {
-      // Upload the screenshot to storage first; the order + proof are then
-      // created together so no order can exist without evidence.
-      const uploadUrl = await generateProofUrl({});
-
-      let res: Response;
-      try {
-        res = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": proofFile.type || "image/jpeg" },
-          body: proofFile,
-        });
-      } catch (err) {
-        // Surface the real cause instead of the browser's bare "fetch failed",
-        // which says nothing about whether it was the network or the host.
-        console.error("[checkout] storage upload failed:", err, {
-          host: new URL(uploadUrl).host,
-          fileType: proofFile.type,
-          size: proofFile.size,
-        });
-        throw new Error(
-          "Couldn't reach the upload service. Check your connection and tap I Have Paid again.",
-        );
-      }
-      if (!res.ok) {
-        console.error("[checkout] upload rejected:", res.status, await res.text());
-        throw new Error(
-          `Upload rejected (${res.status}). If you picked a very large photo, try a smaller screenshot.`,
-        );
-      }
-      const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+      // Upload the screenshot first; the order + proof are then created
+      // together so no order can exist without evidence.
+      const upload = await uploadProofImage(proofFile, {
+        getUploadUrl: () => generateProofUrl({}),
+        sendBytes: (bytes) => storeProofBytes({ bytes }),
+      });
+      if (!upload.ok) throw new Error(upload.reason);
+      const storageId = upload.storageId as Id<"_storage">;
 
       for (const item of items) {
         const r = item.requirements as unknown as Req;

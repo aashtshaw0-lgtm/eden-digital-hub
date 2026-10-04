@@ -1,6 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, action } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
@@ -157,6 +158,31 @@ export const analyzePaymentProofJob = internalMutation({
 });
 
 /**
+ * Stores a proof image supplied as raw bytes and returns its storage id.
+ *
+ * Only actions can write to storage, and this exists because the signed upload
+ * URL is a cross-origin POST that an embedding preview frame can block. When
+ * that route fails the client sends compressed bytes here instead, so checkout
+ * is never dead in the water over a blocked request.
+ */
+export const storeProofBytes = action({
+  args: { bytes: v.bytes() },
+  handler: async (ctx, { bytes }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("Sign in to attach a payment proof.");
+    if (bytes.byteLength === 0) throw new Error("That image came through empty.");
+    if (bytes.byteLength > 1_500_000) {
+      throw new Error("Image is too large even after compression — try a smaller screenshot.");
+    }
+    // Actions have no db, so the per-account limiter (which needs one) can't
+    // run here; the size ceiling plus auth are the guardrails.
+    return await ctx.storage.store(
+      new Blob([new Uint8Array(bytes)], { type: "image/jpeg" }),
+    );
+  },
+});
+
+/**
  * Creates an order together with its payment proof.
  *
  * The client must submit the screenshot and the UTR *before* the order is
@@ -191,6 +217,12 @@ export const createWithProof = mutation({
     const utr = args.utr.trim();
     if (utr.length < 4) throw new Error("Enter the UPI reference / UTR from your payment app.");
 
+    // The proof normally arrives via a storage upload URL, but that POST can be
+    // blocked by an embedding iframe. `storeProofBytes` (an action, since only
+    // actions can write storage) provides the fallback id.
+    if (!args.storageId) throw new Error("Attach your payment screenshot.");
+    const storageId: Id<"_storage"> = args.storageId;
+
     const tip = Math.max(0, args.tipAmount ?? 0);
     const now = Date.now();
     const orderId = await ctx.db.insert("orders", {
@@ -211,7 +243,7 @@ export const createWithProof = mutation({
 
     await ctx.db.insert("paymentProofs", {
       orderId,
-      storageId: args.storageId,
+      storageId,
       utr,
       txnId: args.txnId?.trim() || undefined,
       declaredAmount: args.declaredAmount,

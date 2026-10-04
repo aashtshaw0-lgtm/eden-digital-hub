@@ -212,7 +212,52 @@ export function AdminOrders() {
         />
       </div>
 
-      <div className="clay overflow-x-auto">
+      {/* Mobile: stacked cards, no sideways scrolling. */}
+      <ul className="space-y-3 lg:hidden">
+        {orders.map((o) => (
+          <li key={o._id} className="clay space-y-3 p-4">
+            <button onClick={() => setSelected(o)} className="w-full text-left">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold leading-tight">{o.serviceName}</p>
+                  <p className="text-xs text-muted-foreground">{o.tierName}</p>
+                </div>
+                <span className="shrink-0 text-sm font-semibold tabular-nums">
+                  {inr(o.totalPrice)}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {o.clientName} · {formatDate(o.createdAt)}
+              </p>
+            </button>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusPill status={o.status ?? "pending"} />
+              <PaidPill order={o} />
+            </div>
+
+            <AlertBadges order={o} />
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelected(o)}
+                className="clay-sm flex-1 rounded-xl px-3 py-2 text-xs font-semibold text-primary"
+              >
+                Open & decide
+              </button>
+              <button
+                onClick={() => void setStatus(o._id, o.status === "approved" ? "pending" : "approved")}
+                className="clay-sm rounded-xl px-3 py-2 text-xs font-medium text-muted-foreground"
+              >
+                {o.status === "approved" ? "Undo approve" : "Approve"}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      {/* Desktop: full table */}
+      <div className="clay hidden overflow-x-auto lg:block">
         <table className="w-full min-w-[860px] text-sm">
           <thead>
             <tr className="border-b border-border/70 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -293,11 +338,11 @@ export function AdminOrders() {
       {/* Requirements + proof detail modal */}
       {selected && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/30 backdrop-blur-sm sm:items-center sm:p-4"
           onClick={() => setSelected(null)}
         >
           <div
-            className="clay max-h-[80vh] w-full max-w-lg overflow-y-auto p-6"
+            className="clay w-full max-h-[92dvh] overflow-y-auto rounded-b-none p-5 sm:max-h-[85vh] sm:max-w-lg sm:rounded-2xl sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -369,6 +414,39 @@ export function AdminOrders() {
         </div>
       )}
     </>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2.5 py-1 text-xs font-semibold capitalize",
+        STATUS_STYLES[status] ?? STATUS_STYLES.pending,
+      )}
+    >
+      {status}
+    </span>
+  );
+}
+
+function PaidPill({ order }: { order: Order }) {
+  const isPaid =
+    order.status === "approved" ||
+    order.status === "completed" ||
+    (order.proof?.declaredAmount ?? 0) >= order.totalPrice;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
+        isPaid
+          ? "bg-emerald-600/15 text-emerald-700"
+          : "bg-amber-500/15 text-amber-700",
+      )}
+    >
+      {isPaid ? <BadgeCheck className="size-3" /> : <CircleAlert className="size-3" />}
+      {isPaid ? "Paid" : "Unpaid"}
+    </span>
   );
 }
 

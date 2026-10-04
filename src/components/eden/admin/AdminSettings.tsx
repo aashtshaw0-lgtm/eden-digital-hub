@@ -1,8 +1,9 @@
 import { api } from "@/convex/_generated/api";
 import { useSettings } from "@/context/SettingsProvider";
+import { cn } from "@/lib/utils";
 import { useMutation } from "convex/react";
 import { CloudUpload, Loader2, Save } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 const inputCls =
@@ -10,6 +11,28 @@ const inputCls =
 
 export function AdminSettings() {
   const settings = useSettings();
+
+  // The editable form below keeps local draft state. Remounting it on a
+  // settings change (via `key`) is what resyncs the draft — doing that with a
+  // useEffect would mean setState during an effect, which cascades renders.
+  const formKey = [
+    settings.primaryColor,
+    settings.backgroundColor,
+    settings.upiId,
+    settings.heroLead,
+    settings.heroMode,
+    settings.heroAccent,
+    settings.heroAccentWords.join("|"),
+    settings.socialLinks.instagram,
+    settings.socialLinks.twitter,
+    settings.socialLinks.behance,
+    settings.socialLinks.linkedin,
+  ].join("::");
+
+  return <SettingsForm key={formKey} settings={settings} />;
+}
+
+function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }) {
   const update = useMutation(api.settings.update);
   const generateUploadUrl = useMutation(api.settings.generateUploadUrl);
   const setQrImage = useMutation(api.settings.setQrImage);
@@ -21,26 +44,13 @@ export function AdminSettings() {
   const [twitter, setTwitter] = useState(settings.socialLinks.twitter);
   const [behance, setBehance] = useState(settings.socialLinks.behance);
   const [linkedin, setLinkedin] = useState(settings.socialLinks.linkedin);
+  const [heroLead, setHeroLead] = useState(settings.heroLead);
+  const [heroMode, setHeroMode] = useState<"rotating" | "static">(settings.heroMode);
+  const [heroAccent, setHeroAccent] = useState(settings.heroAccent);
+  const [heroWords, setHeroWords] = useState(settings.heroAccentWords.join(", "));
   const [saving, setSaving] = useState(false);
   const [qrBusy, setQrBusy] = useState(false);
   const qrRef = useRef<HTMLInputElement>(null);
-
-  // Sync the editable form fields whenever the CMS settings row changes
-  // (e.g. after a save, or when another admin tab edits it).
-  useEffect(() => {
-    setPrimaryColor(settings.primaryColor);
-    setBackgroundColor(settings.backgroundColor);
-    setUpiId(settings.upiId);
-    setInstagram(settings.socialLinks.instagram);
-    setTwitter(settings.socialLinks.twitter);
-    setBehance(settings.socialLinks.behance);
-    setLinkedin(settings.socialLinks.linkedin);
-  }, [
-    settings.primaryColor,
-    settings.backgroundColor,
-    settings.upiId,
-    settings.socialLinks,
-  ]);
 
   const save = async () => {
     setSaving(true);
@@ -53,6 +63,10 @@ export function AdminSettings() {
         twitter,
         behance,
         linkedin,
+        heroLead,
+        heroMode,
+        heroAccent,
+        heroAccentWords: heroWords.split(","),
       });
       toast.success("Website updated — live everywhere now.");
     } catch (e) {
@@ -146,7 +160,86 @@ export function AdminSettings() {
       </section>
 
       <section className="clay space-y-4 p-6">
-        <h3 className="font-display text-lg font-semibold">Payment QR</h3>
+        <section className="clay space-y-4 p-5">
+        <div>
+          <h3 className="font-display text-lg font-semibold">Home screen headline</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            The green words in the big headline on the home screen.
+          </p>
+        </div>
+
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Text before the green words
+          </span>
+          <input
+            value={heroLead}
+            onChange={(e) => setHeroLead(e.target.value)}
+            className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+          />
+        </label>
+
+        <div>
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Style
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            {(["rotating", "static"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setHeroMode(mode)}
+                className={cn(
+                  "rounded-xl px-3 py-2.5 text-sm font-medium capitalize transition",
+                  heroMode === mode
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "clay-sm text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            {heroMode === "rotating"
+              ? "The green words cycle every few seconds."
+              : "The green words stay put — use the field below."}
+          </p>
+        </div>
+
+        {heroMode === "static" ? (
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Green words
+            </span>
+            <input
+              value={heroAccent}
+              onChange={(e) => setHeroAccent(e.target.value)}
+              className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          </label>
+        ) : (
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Words to cycle through (comma separated, up to 8)
+            </span>
+            <textarea
+              value={heroWords}
+              onChange={(e) => setHeroWords(e.target.value)}
+              rows={2}
+              className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          </label>
+        )}
+
+        <p className="text-xs text-muted-foreground">
+          Preview:{" "}
+          <span className="font-display text-emerald-700 dark:text-emerald-400">
+            {heroLead} {heroMode === "static" ? heroAccent : heroWords.split(",")[0]?.trim()}
+          </span>
+        </p>
+      </section>
+
+      <h3 className="font-display text-lg font-semibold">Payment QR</h3>
         <div className="clay-inset mx-auto flex aspect-square w-48 items-center justify-center overflow-hidden rounded-2xl">
           {settings.qrImageUrl ? (
             <img src={settings.qrImageUrl} alt="Current QR" className="size-full object-contain p-2" />
