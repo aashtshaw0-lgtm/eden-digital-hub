@@ -125,6 +125,14 @@ const schema = defineSchema(
       storageId: v.optional(v.id("_storage")),
       createdAt: v.optional(v.number()),
     }),
+
+    // abuse protection — one row per (limit name, caller key); count resets each window
+    rateLimits: defineTable({
+      name: v.string(), // which limit, e.g. "chatSend"
+      key: v.string(), // caller identity, e.g. user id
+      count: v.number(),
+      windowStart: v.number(),
+    }).index("by_name_key", ["name", "key"]),
   },
   {
     schemaValidation: false,

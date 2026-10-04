@@ -136,6 +136,7 @@ export default function Landing() {
                   src={item.url}
                   alt={item.title}
                   loading="lazy"
+                  decoding="async"
                   onError={() => setBroken((prev) => new Set(prev).add(item._id))}
                   className="w-full object-cover transition duration-500 group-hover:scale-[1.03]"
                 />

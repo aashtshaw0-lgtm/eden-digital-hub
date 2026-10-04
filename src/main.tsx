@@ -14,6 +14,7 @@ import { SettingsProvider } from "./context/SettingsProvider";
 import { DynamicIsland } from "./components/eden/DynamicIsland";
 import { ChatWidget } from "./components/eden/ChatWidget";
 import { RequireAdmin } from "./components/eden/RequireAdmin";
+import { CookieConsent } from "./components/eden/CookieConsent";
 import "./index.css";
 
 // Lazy load route components for better code splitting
@@ -23,6 +24,7 @@ const Portal = lazy(() => import("./pages/Portal.tsx"));
 const Services = lazy(() => import("./pages/Services.tsx"));
 const Checkout = lazy(() => import("./pages/Checkout.tsx"));
 const Admin = lazy(() => import("./pages/Admin.tsx"));
+const Legal = lazy(() => import("./pages/Legal.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 // Simple loading fallback for route transitions
@@ -57,6 +59,7 @@ function GlobalChrome() {
         <>
           <DynamicIsland />
           <ChatWidget />
+          <CookieConsent />
         </>
       )}
     </>
@@ -179,6 +182,7 @@ createRoot(document.getElementById("root")!).render(
                     path="/auth"
                     element={<AuthPage redirectAfterAuth="/portal" />}
                   />
+                  <Route path="/legal" element={<Legal />} />
                   <Route
                     path="/portal"
                     element={

@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowUp, Bot, MessagesSquare, Sparkles, X } from "lucide-rea
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useAction, useMutation, useQuery } from "convex/react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 type Mode = "closed" | "choose" | "ai" | "manager";
@@ -215,7 +216,14 @@ function ManagerChat({ onBack }: { onBack: () => void }) {
     const text = input.trim();
     if (!text || !session) return;
     setInput("");
-    await sendMessage({ sessionId: session._id, content: text });
+    try {
+      await sendMessage({ sessionId: session._id, content: text });
+    } catch (err) {
+      // Rate limiter and permission errors come back as thrown errors — put the
+      // message back so nothing the client typed is lost.
+      setInput(text);
+      toast.error(err instanceof Error ? err.message : "Message failed to send.");
+    }
   };
 
   return (

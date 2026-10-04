@@ -1,4 +1,5 @@
 import { useSettings } from "@/context/SettingsProvider";
+import { OPEN_COOKIE_CONSENT_EVENT } from "@/components/eden/CookieConsent";
 import { Instagram, Linkedin, Link2, Twitter } from "lucide-react";
 import { Sprout } from "lucide-react";
 import { Link } from "react-router";
@@ -26,10 +27,12 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <nav className="flex items-center gap-5 text-sm text-muted-foreground">
+        <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
           <Link to="/services" className="hover:text-foreground">Services</Link>
           <Link to="/portal" className="hover:text-foreground">Portal</Link>
           <Link to="/checkout" className="hover:text-foreground">Checkout</Link>
+          <Link to="/legal?tab=privacy" className="hover:text-foreground">Privacy</Link>
+          <Link to="/legal?tab=terms" className="hover:text-foreground">Terms</Link>
         </nav>
 
         <div className="flex items-center gap-3">
@@ -48,7 +51,20 @@ export function SiteFooter() {
         </div>
       </div>
       <p className="mx-auto mt-8 w-full max-w-6xl text-center text-xs text-muted-foreground sm:text-left">
-        © {new Date().getFullYear()} Eden. Crafted slowly, delivered fast.
+        © {new Date().getFullYear()} Eden. Crafted slowly, delivered fast.{" "}
+        <Link to="/legal?tab=refunds" className="hover:text-foreground">
+          Refund policy
+        </Link>{" "}·{" "}
+        <Link to="/legal?tab=cookies" className="hover:text-foreground">
+          Cookie policy
+        </Link>{" "}·{" "}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent(OPEN_COOKIE_CONSENT_EVENT))}
+          className="underline-offset-2 hover:text-foreground hover:underline"
+        >
+          Cookie settings
+        </button>
       </p>
     </footer>
   );

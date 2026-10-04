@@ -2,6 +2,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireAdmin } from "./lib/rbac";
+import { enforceRateLimit } from "./lib/rateLimit";
 
 /** Short-lived upload URL for intake reference files (signed-in clients). */
 export const generateUploadUrl = mutation({
@@ -9,6 +10,8 @@ export const generateUploadUrl = mutation({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) throw new Error("Sign in to attach reference files.");
+    // Storage uploads cost real bytes — keep them bounded per account.
+    await enforceRateLimit(ctx, { name: "uploadUrl", key: userId, max: 30, windowMs: 3600_000 });
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -26,6 +29,8 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) throw new Error("You must be signed in to place an order.");
+    // Order spam protection: generous for real clients, hostile to junk floods.
+    await enforceRateLimit(ctx, { name: "orderCreate", key: userId, max: 10, windowMs: 3600_000 });
     const tier = await ctx.db.get(args.tierId);
     if (!tier || tier.serviceId !== args.serviceId) throw new Error("Invalid tier selected.");
     const service = await ctx.db.get(args.serviceId);

@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { requireAdmin } from "./lib/rbac";
+import { enforceRateLimit } from "./lib/rateLimit";
 
 async function viewer(ctx: QueryCtx) {
   const userId = await getAuthUserId(ctx);
@@ -82,6 +83,8 @@ export const sendMessage = mutation({
     }
     const trimmed = content.trim();
     if (!trimmed) return null;
+    // Abuse protection: managers included, so a compromised admin can't flood either.
+    await enforceRateLimit(ctx, { name: "chatSend", key: user._id, max: 20, windowMs: 60_000 });
     await ctx.db.insert("messages", {
       sessionId,
       senderId: user._id,
