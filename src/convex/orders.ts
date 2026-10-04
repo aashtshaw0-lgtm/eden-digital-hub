@@ -156,6 +156,131 @@ export const analyzePaymentProofJob = internalMutation({
   },
 });
 
+/**
+ * Creates an order together with its payment proof.
+ *
+ * The client must submit the screenshot and the UTR *before* the order is
+ * created, so both land in one transaction: a client can never leave an order
+ * behind without the evidence needed to review it.
+ */
+export const createWithProof = mutation({
+  args: {
+    serviceId: v.id("services"),
+    tierId: v.id("serviceTiers"),
+    requirements: v.any(),
+    clientName: v.string(),
+    clientEmail: v.string(),
+    clientWhatsapp: v.string(),
+    tipAmount: v.optional(v.number()),
+    storageId: v.id("_storage"),
+    utr: v.string(),
+    declaredAmount: v.number(),
+    payerName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("You must be signed in to place an order.");
+    await enforceRateLimit(ctx, { name: "orderCreate", key: userId, max: 10, windowMs: 3600_000 });
+
+    const tier = await ctx.db.get(args.tierId);
+    if (!tier || tier.serviceId !== args.serviceId) throw new Error("Invalid tier selected.");
+    const service = await ctx.db.get(args.serviceId);
+    if (!service) throw new Error("Invalid service selected.");
+
+    const utr = args.utr.trim();
+    if (utr.length < 4) throw new Error("Enter the UPI reference / UTR from your payment app.");
+    if (args.declaredAmount <= 0) throw new Error("Enter the amount you paid.");
+
+    const tip = Math.max(0, args.tipAmount ?? 0);
+    const now = Date.now();
+    const orderId = await ctx.db.insert("orders", {
+      clientId: userId,
+      serviceId: args.serviceId,
+      tierId: args.tierId,
+      serviceName: service.name,
+      tierName: tier.name,
+      requirements: args.requirements,
+      clientName: args.clientName,
+      clientEmail: args.clientEmail,
+      clientWhatsapp: args.clientWhatsapp,
+      totalPrice: tier.basePrice + tip,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await ctx.db.insert("paymentProofs", {
+      orderId,
+      storageId: args.storageId,
+      utr,
+      declaredAmount: args.declaredAmount,
+      payerName: args.payerName?.trim() || undefined,
+      uploadedAt: now,
+    });
+
+    // A qualifying tip grants the credit straight away.
+    if (tip > 0) {
+      await grantCreditForTip(ctx, { order: (await ctx.db.get(orderId))!, tipAmount: tip });
+    }
+    return orderId;
+  },
+});
+
+/** Approves an order once its proof checks out — admin only. */
+export const approve = mutation({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }) => {
+    await requireAdmin(ctx);
+    const order = await ctx.db.get(orderId);
+    if (!order) throw new Error("Order not found.");
+    await ctx.db.patch(orderId, {
+      status: "approved",
+      rejectionReason: undefined,
+      updatedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+/**
+ * Declines an order with a reason the client can read — admin only.
+ *
+ * Used for a short payment, a wrong proof, or anything else that means the
+ * order should not proceed.
+ */
+export const reject = mutation({
+  args: { orderId: v.id("orders"), reason: v.string() },
+  handler: async (ctx, { orderId, reason }) => {
+    await requireAdmin(ctx);
+    const order = await ctx.db.get(orderId);
+    if (!order) throw new Error("Order not found.");
+    const trimmed = reason.trim();
+    if (!trimmed) throw new Error("Give the client a reason for declining.");
+    await ctx.db.patch(orderId, {
+      status: "rejected",
+      rejectionReason: trimmed,
+      updatedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+/** Records that money was returned to the client — admin only. */
+export const markRefunded = mutation({
+  args: { orderId: v.id("orders"), amount: v.optional(v.number()) },
+  handler: async (ctx, { orderId, amount }) => {
+    await requireAdmin(ctx);
+    const order = await ctx.db.get(orderId);
+    if (!order) throw new Error("Order not found.");
+    await ctx.db.patch(orderId, {
+      refundedAmount: Math.max(0, amount ?? order.totalPrice),
+      refundedAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
 /** Creates an order after manual UPI payment. Price is re-derived from the tier server-side. */
 export const create = mutation({
   args: {
@@ -265,6 +390,16 @@ export const listAll = query({
           clientAccountName: client?.name,
           proof: proof ?? null,
           review: review ?? null,
+          /** What the client claimed vs what the AI read vs what was due. */
+          mismatch: (proof && proof.declaredAmount !== undefined
+            ? proof.declaredAmount < order.totalPrice
+              ? "short"
+              : review?.paidAmount !== undefined && review.paidAmount < order.totalPrice
+                ? "short"
+                : "match"
+            : review?.paidAmount !== undefined && review.paidAmount < order.totalPrice
+              ? "short"
+              : "unknown") as "match" | "short" | "unknown",
         };
       }),
     );
@@ -339,7 +474,15 @@ export const confirmPayment = mutation({
 
 /** Status transition — admin only. */
 export const updateStatus = mutation({
-  args: { orderId: v.id("orders"), status: v.union(v.literal("pending"), v.literal("approved"), v.literal("completed")) },
+  args: {
+    orderId: v.id("orders"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("completed"),
+      v.literal("rejected"),
+    ),
+  },
   handler: async (ctx, { orderId, status }) => {
     await requireAdmin(ctx);
     const order = await ctx.db.get(orderId);

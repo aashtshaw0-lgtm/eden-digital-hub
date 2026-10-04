@@ -12,10 +12,9 @@ import { cn } from "@/lib/utils";
 import { useSeo } from "@/lib/seo";
 import type { Id } from "@/convex/_generated/dataModel";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Copy, HeartHandshake, Loader2, QrCode, ReceiptIndianRupee, Sparkles, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Check, CircleAlert, Copy, HeartHandshake, Loader2, QrCode, Sparkles, Trash2, Upload } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
-import { ProofRequest } from "@/components/eden/ProofRequest";
 import { Link } from "react-router";
 import { toast } from "sonner";
 
@@ -45,17 +44,26 @@ export default function Checkout() {
   useSeo({ title: `Checkout | Eden - Digital Design & Management` });
   const { items, total, removeItem, clear } = useCart();
   const { upiId, qrImageUrl } = useSettings();
-  const createOrder = useMutation(api.orders.create);
-  const recordTip = useMutation(api.orders.recordTip);
+  const createWithProof = useMutation(api.orders.createWithProof);
+  const generateProofUrl = useMutation(api.orders.generateUploadUrl);
   const [paying, setPaying] = useState(false);
   const [copied, setCopied] = useState(false);
   const [tipAmount, setTipAmount] = useState(0);
   const [customTip, setCustomTip] = useState("");
+  // Proof details — the order cannot be submitted without them.
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [utr, setUtr] = useState("");
+  const [declaredAmount, setDeclaredAmount] = useState("");
+  const [payerName, setPayerName] = useState("");
+  const proofInputRef = useRef<HTMLInputElement | null>(null);
   // Orders just created, so we can ask for proof before leaving the page.
   const [createdOrders, setCreatedOrders] = useState<CreatedOrder[] | null>(null);
 
   const tip = customTip.trim() === "" ? tipAmount : Math.max(0, Number(customTip) || 0);
   const grandTotal = total + tip;
+  const declaredValue = Number(declaredAmount) || 0;
+  // Screenshot + UTR + amount are all required before "I Have Paid" unlocks.
+  const proofReady = proofFile !== null && utr.trim().length >= 4 && declaredValue > 0;
   const tierLabel = useMemo(() => tipTierName(tip), [tip]);
 
   const copyUpi = async () => {
@@ -70,23 +78,39 @@ export default function Checkout() {
   };
 
   const confirmPayment = async () => {
+    if (!proofFile || !proofReady) {
+      toast.error("Attach your screenshot, UTR and the amount you paid first.");
+      return;
+    }
     setPaying(true);
     const created: CreatedOrder[] = [];
     try {
+      // Upload the screenshot to storage first; the order + proof are then
+      // created together so no order can exist without evidence.
+      const uploadUrl = await generateProofUrl({});
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": proofFile.type || "image/jpeg" },
+        body: proofFile,
+      });
+      if (!res.ok) throw new Error("Couldn't upload your screenshot — please try again.");
+      const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+
       for (const item of items) {
         const r = item.requirements as unknown as Req;
-        const orderId = await createOrder({
+        const orderId = await createWithProof({
           serviceId: item.serviceId as Id<"services">,
           tierId: item.tierId as Id<"serviceTiers">,
           requirements: item.requirements,
           clientName: r.clientName,
           clientEmail: r.clientEmail,
           clientWhatsapp: r.clientWhatsapp,
+          tipAmount: tip,
+          storageId,
+          utr,
+          declaredAmount: declaredValue,
+          payerName: payerName || undefined,
         });
-        // The tip rides along with the order so the admin board can alert on it.
-        if (tip > 0) {
-          await recordTip({ orderId, tipAmount: tip });
-        }
         created.push({
           orderId,
           label: `${item.serviceName} · ${item.tierName}`,
@@ -94,7 +118,7 @@ export default function Checkout() {
         });
       }
       clear();
-      toast.success("Order received — send your payment proof to confirm it.");
+      toast.success("Order and proof received — we'll confirm shortly.");
       setCreatedOrders(created);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
@@ -104,7 +128,7 @@ export default function Checkout() {
     }
   };
 
-  /* After checkout: ask for the proof before the client leaves the page. */
+  /* After checkout: the order and its proof were submitted together. */
   if (createdOrders) {
     return (
       <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
@@ -114,29 +138,37 @@ export default function Checkout() {
           className="text-center"
         >
           <span className="tint mx-auto flex size-14 items-center justify-center rounded-3xl">
-            <ReceiptIndianRupee className="size-7" />
+            <Check className="size-7" />
           </span>
           <h1 className="font-display mt-5 text-3xl font-semibold tracking-tight">
-            One step left — send your proof
+            Order and proof received
           </h1>
           <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
-            Your order is in the studio queue. Upload your UPI screenshot and we'll confirm it
-            right away, usually in a few minutes.
+            We've got your payment screenshot and UTR. The studio will confirm on WhatsApp — usually
+            within a few minutes.
           </p>
         </motion.div>
 
-        <div className="mt-8 space-y-5">
+        <ul className="mt-8 space-y-2.5">
           {createdOrders.map((o) => (
-            <ProofRequest key={o.orderId} orderId={o.orderId} amountDue={o.amount} serviceLabel={o.label} />
+            <motion.li
+              key={o.orderId}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="clay flex items-center justify-between gap-3 p-4"
+            >
+              <span className="text-sm font-medium">{o.label}</span>
+              <span className="text-sm font-semibold tabular-nums">{inr(o.amount)}</span>
+            </motion.li>
           ))}
-        </div>
+        </ul>
 
         <div className="mt-8 flex justify-center">
           <Link
             to="/portal"
-            className="text-sm font-semibold text-muted-foreground hover:text-foreground"
+            className="text-sm font-semibold text-primary hover:underline"
           >
-            Skip for now · go to my orders
+            Go to my orders
           </Link>
         </div>
       </main>
@@ -329,16 +361,85 @@ export default function Checkout() {
 
           <button
             onClick={confirmPayment}
-            disabled={paying}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3.5 text-sm font-semibold text-primary-foreground shadow-md transition hover:brightness-110 disabled:opacity-60"
+            disabled={paying || !proofReady}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3.5 text-sm font-semibold text-primary-foreground shadow-md transition hover:brightness-110 disabled:opacity-50"
           >
             {paying && <Loader2 className="size-4 animate-spin" />}
             I Have Paid · {inr(grandTotal)}
           </button>
+
           <p className="text-center text-[11px] leading-snug text-muted-foreground">
-            Your order lands in the studio queue instantly; a manager confirms
-            receipt on WhatsApp.
+            {proofReady
+              ? "Order and proof reach the studio together; a manager confirms on WhatsApp."
+              : "Pay first, then attach the screenshot and UTR below to unlock this button."}
           </p>
+
+          {/* Proof details — required before the order can be submitted */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-3 border-t border-border/60 pt-5"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              1 · Attach your payment screenshot
+            </p>
+            <input
+              ref={proofInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+            />
+            <button
+              onClick={() => proofInputRef.current?.click()}
+              className="clay-inset flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-muted-foreground transition hover:text-primary"
+            >
+              <Upload className="size-4" />
+              {proofFile ? proofFile.name : "Choose screenshot"}
+            </button>
+
+            <p className="pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              2 · Enter the payment details
+            </p>
+            <input
+              value={utr}
+              onChange={(e) => setUtr(e.target.value)}
+              placeholder="UPI reference / UTR number"
+              inputMode="numeric"
+              className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                min={0}
+                value={declaredAmount}
+                onChange={(e) => setDeclaredAmount(e.target.value)}
+                placeholder="Amount you paid"
+                className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm tabular-nums outline-none focus:ring-2 focus:ring-primary/40"
+              />
+              <input
+                value={payerName}
+                onChange={(e) => setPayerName(e.target.value)}
+                placeholder="Who paid"
+                className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+
+            <AnimatePresence>
+              {declaredValue > 0 && declaredValue < grandTotal && (
+                <motion.p
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="flex items-start gap-1.5 text-[11px] leading-snug text-amber-700"
+                >
+                  <CircleAlert className="mt-px size-3 shrink-0" />
+                  That is {inr(grandTotal - declaredValue)} short of {inr(grandTotal)}. You can still
+                  submit — the studio will confirm or decline with a reason.
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </motion.div>
         </aside>
       </div>
     </main>

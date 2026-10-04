@@ -20,6 +20,7 @@ export const orderStatusValidator = v.union(
   v.literal("pending"),
   v.literal("approved"),
   v.literal("completed"),
+  v.literal("rejected"),
 );
 export type OrderStatus = Infer<typeof orderStatusValidator>;
 
@@ -92,6 +93,11 @@ const schema = defineSchema(
       clientWhatsapp: v.string(),
       totalPrice: v.number(),
       status: v.optional(orderStatusValidator),
+      /** Why an admin declined this order, shown to the client. */
+      rejectionReason: v.optional(v.string()),
+      /** Money returned to the client, if any. */
+      refundedAmount: v.optional(v.number()),
+      refundedAt: v.optional(v.number()),
       createdAt: v.optional(v.number()),
       updatedAt: v.optional(v.number()),
     })
@@ -138,6 +144,12 @@ const schema = defineSchema(
     paymentProofs: defineTable({
       orderId: v.id("orders"),
       storageId: v.id("_storage"),
+      /** UPI reference / UTR the client typed in alongside the screenshot. */
+      utr: v.optional(v.string()),
+      /** Amount the client claims they paid. */
+      declaredAmount: v.optional(v.number()),
+      /** Name of the person who made the payment. */
+      payerName: v.optional(v.string()),
       uploadedAt: v.number(),
     }).index("by_order", ["orderId"]),
 

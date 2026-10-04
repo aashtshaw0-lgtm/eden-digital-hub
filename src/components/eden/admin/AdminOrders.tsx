@@ -12,6 +12,7 @@ import {
   ImageUp,
   Loader2,
   ScanLine,
+  Undo2,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -20,10 +21,14 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 type Order = Doc<"orders"> & {
   clientAccountEmail?: string;
   clientAccountName?: string;
+  mismatch?: "short" | "match" | "unknown";
   proof?: {
     _id: Id<"paymentProofs">;
     storageId: Id<"_storage">;
     uploadedAt: number;
+    utr?: string;
+    declaredAmount?: number;
+    payerName?: string;
   } | null;
   review?: {
     _id: Id<"paymentReviews">;
@@ -40,6 +45,7 @@ const STATUS_STYLES: Record<string, string> = {
   pending: "bg-secondary text-secondary-foreground",
   approved: "bg-sky-600/15 text-sky-700",
   completed: "bg-emerald-600/15 text-emerald-700",
+  rejected: "bg-rose-600/15 text-rose-700",
 };
 
 export function AdminOrders() {
@@ -61,7 +67,7 @@ export function AdminOrders() {
     try {
       await updateStatus({
         orderId,
-        status: status as "pending" | "approved" | "completed",
+        status: status as "pending" | "approved" | "completed" | "rejected",
       });
       toast.success(`Order marked ${status}`);
     } catch (e) {
@@ -270,6 +276,7 @@ export function AdminOrders() {
                     <option value="pending">Pending</option>
                     <option value="approved">Approved</option>
                     <option value="completed">Completed</option>
+                    <option value="rejected">Rejected</option>
                   </select>
                 </td>
               </tr>
@@ -311,9 +318,9 @@ export function AdminOrders() {
               </button>
             </div>
 
-            {selected.proof && (
-              <ReviewPanel order={selected} />
-            )}
+            {selected.proof && <ReviewPanel order={selected} />}
+
+            {selected.proof && <DecisionPanel order={selected} />}
 
             <dl className="mt-5 space-y-3">
               {Object.entries(
@@ -476,17 +483,34 @@ function PaidCell({
 
 function AlertBadges({ order }: { order: Order }) {
   const review = order.review;
-  if (!review) return <span className="text-xs text-muted-foreground">—</span>;
+  const claimed = order.proof?.declaredAmount ?? review?.paidAmount ?? 0;
+  const shortBy = order.totalPrice - claimed;
+  const showShort = order.proof !== null && shortBy > 0;
+  const showSpeed = review?.isSpeedPay === true;
+  const tip = review?.tipAmount ?? 0;
+  const showLowTip = claimed > 0 && shortBy > 0 && tip > 0;
 
-  const paidAmount = review.paidAmount ?? 0;
-  const tip = review.tipAmount ?? 0;
-  const shortBy = order.totalPrice + tip - paidAmount;
-  const showSpeed = review.isSpeedPay === true;
-  const showLowTip = paidAmount > 0 && shortBy > 0 && tip > 0;
+  if (!review && !order.proof) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  if (!showShort && !showSpeed && tip === 0) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
 
   return (
     <div className="flex flex-wrap gap-1.5">
       <AnimatePresence>
+        {showShort && (
+          <motion.span
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.85 }}
+            className="inline-flex items-center gap-1 rounded-full bg-rose-600/15 px-2 py-0.5 text-[11px] font-semibold text-rose-700"
+          >
+            <CircleAlert className="size-3" /> Short {inr(shortBy)}
+          </motion.span>
+        )}
         {showSpeed && (
           <motion.span
             initial={{ opacity: 0, scale: 0.85 }}
@@ -504,7 +528,7 @@ function AlertBadges({ order }: { order: Order }) {
             exit={{ opacity: 0, scale: 0.85 }}
             className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-700"
           >
-            <HandCoins className="size-3" /> Paid below tip by {inr(shortBy)}
+            <HandCoins className="size-3" /> Tip {inr(tip)} not covered
           </motion.span>
         )}
         {tip > 0 && !showLowTip && (
@@ -512,10 +536,128 @@ function AlertBadges({ order }: { order: Order }) {
             <HandCoins className="size-3" /> Tip {inr(tip)}
           </span>
         )}
-        {!showSpeed && !showLowTip && tip === 0 && (
+        {!showSpeed && !showLowTip && !showShort && tip === 0 && (
           <span className="text-xs text-muted-foreground">—</span>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function DecisionPanel({ order }: { order: Order }) {
+  const approveOrder = useMutation(api.orders.approve);
+  const rejectOrder = useMutation(api.orders.reject);
+  const refundOrder = useMutation(api.orders.markRefunded);
+  const [reason, setReason] = useState(order.rejectionReason ?? "");
+  const [busy, setBusy] = useState<"approve" | "reject" | "refund" | null>(null);
+
+  const run = async (kind: "approve" | "reject" | "refund") => {
+    setBusy(kind);
+    try {
+      if (kind === "approve") {
+        await approveOrder({ orderId: order._id });
+        toast.success(`Approved ${order.clientName}'s order`);
+      } else if (kind === "reject") {
+        if (!reason.trim()) {
+          toast.error("Give the client a reason for declining.");
+          return;
+        }
+        await rejectOrder({ orderId: order._id, reason });
+        toast.success("Order declined — the client can see your reason");
+      } else {
+        await refundOrder({ orderId: order._id });
+        toast.success("Marked as refunded");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Action failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="mt-5 space-y-3 rounded-2xl bg-secondary/40 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Contact & decide
+      </p>
+
+      {/* Client details, ready to copy or tap */}
+      <div className="grid gap-1.5 text-xs">
+        <p>
+          <span className="text-muted-foreground">Name</span> ·{" "}
+          <span className="font-medium">{order.clientName}</span>
+        </p>
+        <p className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Email</span> ·{" "}
+          <a
+            href={`mailto:${order.clientAccountEmail ?? order.clientEmail}`}
+            className="font-medium text-primary hover:underline"
+          >
+            {order.clientAccountEmail ?? order.clientEmail}
+          </a>
+        </p>
+        <p className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">WhatsApp</span> ·{" "}
+          <a
+            href={`https://wa.me/91${order.clientWhatsapp.replace(/\D/g, "").slice(-10)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-primary hover:underline"
+          >
+            {order.clientWhatsapp}
+          </a>
+        </p>
+      </div>
+
+      {/* Declined with a reason, visible to the client */}
+      {order.status === "rejected" && order.rejectionReason && (
+        <p className="rounded-xl bg-rose-600/10 px-3 py-2 text-xs text-rose-700">
+          Declined: {order.rejectionReason}
+        </p>
+      )}
+      {order.refundedAt && (
+        <p className="rounded-xl bg-emerald-600/10 px-3 py-2 text-xs text-emerald-700">
+          Refunded {inr(order.refundedAmount ?? 0)} on{" "}
+          {formatDate(order.refundedAt)}
+        </p>
+      )}
+
+      {order.status !== "rejected" && order.status !== "completed" && (
+        <>
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason if declining — the client sees this"
+            className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => void run("approve")}
+              disabled={busy !== null || order.status === "approved"}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+            >
+              {busy === "approve" ? <Loader2 className="size-3.5 animate-spin" /> : <BadgeCheck className="size-3.5" />}
+              Approve
+            </button>
+            <button
+              onClick={() => void run("reject")}
+              disabled={busy !== null}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+            >
+              {busy === "reject" ? <Loader2 className="size-3.5 animate-spin" /> : <CircleAlert className="size-3.5" />}
+              Decline
+            </button>
+            <button
+              onClick={() => void run("refund")}
+              disabled={busy !== null || !order.refundedAt}
+              className="clay-sm inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+            >
+              {busy === "refund" ? <Loader2 className="size-3.5 animate-spin" /> : <Undo2 className="size-3.5" />}
+              Money sent back
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -539,6 +681,28 @@ function ReviewPanel({ order }: { order: Order }) {
           />
         </a>
       )}
+
+      {/* What the client claimed when they submitted */}
+      <dl className="grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <dt className="text-muted-foreground">UTR</dt>
+          <dd className="font-medium tabular-nums">{order.proof?.utr ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Declared amount</dt>
+          <dd className="font-medium tabular-nums">
+            {order.proof?.declaredAmount != null ? inr(order.proof.declaredAmount) : "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Paid by</dt>
+          <dd className="font-medium">{order.proof?.payerName ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Order total</dt>
+          <dd className="font-medium tabular-nums">{inr(order.totalPrice)}</dd>
+        </div>
+      </dl>
 
       {review ? (
         <>
