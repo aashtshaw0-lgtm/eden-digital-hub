@@ -169,7 +169,8 @@ const schema = defineSchema(
       createdAt: v.number(),
     })
       .index("by_name", ["name"])
-      .index("by_created", ["createdAt"]),
+      .index("by_created", ["createdAt"])
+      .index("by_source_order", ["sourceOrderId"]),
   },
   {
     schemaValidation: false,

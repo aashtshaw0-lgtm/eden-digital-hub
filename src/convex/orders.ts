@@ -1,5 +1,6 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
@@ -81,11 +82,12 @@ export const attachProof = mutation({
 });
 
 /**
- * AI review of the uploaded proof — decides what is still missing + risk signals.
+ * Queues the AI review of an uploaded proof.
  *
- * Stays a mutation so it can read and write the proof + review rows directly.
- * The vision call is bounded by an abort signal; if Gemini is slow or missing,
- * the review falls back to a safe human checklist instead of failing the click.
+ * The Gemini vision call can take several seconds, which would eat a
+ * mutation's time budget, so this mutation only validates the request and
+ * schedules `analyzePaymentProofJob` to do the slow work. The admin board
+ * reacts when the review row lands (the `listAll` query is reactive).
  */
 export const reviewProof = mutation({
   args: { proofId: v.id("paymentProofs") },
@@ -98,18 +100,48 @@ export const reviewProof = mutation({
       .query("paymentReviews")
       .withIndex("by_proof", (q) => q.eq("proofId", proofId))
       .first();
+    if (already) return { queued: false as const, reviewId: already._id };
+
+    // Fail fast on a missing image or order rather than inside the job.
+    const url = await ctx.storage.getUrl(proof.storageId);
+    if (!url) throw new Error("Proof image is not reachable.");
+    const order = await ctx.db.get(proof.orderId);
+    if (!order) throw new Error("Attached order not found.");
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.orders.analyzePaymentProofJob,
+      { proofId },
+    );
+
+    return { queued: true as const, reviewId: null };
+  },
+});
+
+/**
+ * The slow half of the proof review, run on the scheduler so the vision call
+ * is never inside the admin's mutation. If Gemini is slow, missing, or
+ * unhappy, it still writes a safe human-review checklist rather than leaving
+ * the row empty.
+ */
+export const analyzePaymentProofJob = internalMutation({
+  args: { proofId: v.id("paymentProofs") },
+  handler: async (ctx, { proofId }) => {
+    const proof = await ctx.db.get(proofId);
+    if (!proof) return null;
+
+    const already = await ctx.db
+      .query("paymentReviews")
+      .withIndex("by_proof", (q) => q.eq("proofId", proofId))
+      .first();
     if (already) return already._id;
 
     const url = await ctx.storage.getUrl(proof.storageId);
     if (!url) throw new Error("Proof image is not reachable.");
-
     const order = await ctx.db.get(proof.orderId);
     if (!order) throw new Error("Attached order not found.");
 
-    const review = await analyzePaymentProof(ctx, {
-      imageUrl: url,
-      order,
-    });
+    const review = await analyzePaymentProof(ctx, { imageUrl: url, order });
 
     return await ctx.db.insert("paymentReviews", {
       proofId,
@@ -301,12 +333,10 @@ async function grantCreditForTip(
   const { order, tipAmount } = args;
   if (tipAmount < PREMIUM_TIP_THRESHOLD) return false;
 
-  const existing = (
-    await ctx.db
-      .query("credits")
-      .withIndex("by_created", (q) => q.gte("createdAt", 0))
-      .collect()
-  ).find((row) => row.sourceOrderId === order._id);
+  const existing = await ctx.db
+    .query("credits")
+    .withIndex("by_source_order", (q) => q.eq("sourceOrderId", order._id))
+    .first();
 
   const tier = tipTierFor(tipAmount);
   const fields = {

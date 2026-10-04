@@ -68,12 +68,16 @@ export function AdminOrders() {
     }
   };
 
-  /** Triggers the AI proof review and refreshes the selected row if it is open. */
+  /** Queues the AI proof review; the board updates when the review row lands. */
   const runAiReview = async (proofId: Id<"paymentProofs">) => {
     setReviewing(proofId);
     try {
-      await reviewProof({ proofId });
-      toast.success("AI proof review complete");
+      const result = await reviewProof({ proofId });
+      toast.success(
+        result.queued
+          ? "AI review queued — the row updates in a few seconds"
+          : "This proof was already reviewed",
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "AI review failed");
     } finally {

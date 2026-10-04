@@ -121,12 +121,10 @@ export const grantFromTip = mutation({
     const order = await ctx.db.get(orderId);
     if (!order) throw new Error("Order not found.");
 
-    const existing = (
-      await ctx.db
-        .query("credits")
-        .withIndex("by_created", (q) => q.gte("createdAt", 0))
-        .collect()
-    ).find((row) => row.sourceOrderId === orderId);
+    const existing = await ctx.db
+      .query("credits")
+      .withIndex("by_source_order", (q) => q.eq("sourceOrderId", orderId))
+      .first();
 
     const tier = tierFor(tipAmount);
     const fields = {

@@ -94,6 +94,12 @@ export default function Landing() {
           >
             See our work
           </a>
+          <Link
+            to="/credits"
+            className="clay-sm rounded-full px-6 py-3 text-sm font-semibold transition hover:text-primary"
+          >
+            Meet our credits
+          </Link>
         </motion.div>
 
         <motion.div
