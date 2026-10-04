@@ -171,6 +171,12 @@ const schema = defineSchema(
       expectedAmount: v.optional(v.number()),
       tipAmount: v.optional(v.number()),
       isSpeedPay: v.optional(v.boolean()),
+      /**
+       * True when the vision call could not produce a usable amount. The board
+       * must show "amount not read" in this case — never treat a failed read as
+       * a client who paid nothing.
+       */
+      readFailed: v.optional(v.boolean()),
       reviewedAt: v.optional(v.number()),
     }).index("by_proof", ["proofId"]),
 

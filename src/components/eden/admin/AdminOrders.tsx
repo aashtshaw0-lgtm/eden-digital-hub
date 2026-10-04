@@ -22,6 +22,13 @@ type Order = Doc<"orders"> & {
   clientAccountEmail?: string;
   clientAccountName?: string;
   mismatch?: "short" | "match" | "unknown";
+  /**
+   * Resolved server-side so the board, the paid pill, and the counts can never
+   * disagree. `paidAmount: null` means "we do not know yet" — not zero.
+   */
+  paidAmount?: number | null;
+  shortBy?: number | null;
+  paidSource?: "ai" | "declared" | "unknown";
   proof?: {
     _id: Id<"paymentProofs">;
     storageId: Id<"_storage">;
@@ -39,8 +46,29 @@ type Order = Doc<"orders"> & {
     expectedAmount?: number;
     tipAmount?: number;
     isSpeedPay?: boolean;
+    readFailed?: boolean;
   } | null;
 };
+
+/**
+ * What the board is allowed to claim about a payment.
+ *
+ * `known` is false when nothing has been read yet, which is a different state
+ * from "the client paid nothing" — collapsing the two is what made a receipt
+ * the AI had not read show up as short by the entire order total.
+ */
+function paymentState(order: Order) {
+  const paidAmount = order.paidAmount ?? null;
+  const shortBy = order.shortBy ?? null;
+  const settled = order.status !== "pending";
+  return {
+    paidAmount,
+    shortBy,
+    known: paidAmount !== null,
+    short: shortBy !== null && shortBy > 0,
+    paid: settled || (shortBy !== null && shortBy === 0),
+  };
+}
 
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-secondary text-secondary-foreground",
@@ -95,9 +123,16 @@ export function AdminOrders() {
 
   const runConfirm = async (order: Order) => {
     if (!order.proof || !order.review) return;
+    // Confirming on a guess records the full order total as paid. Only the
+    // amount actually read (or typed) may be written, otherwise the ledger
+    // overstates what arrived.
+    const paid = paymentState(order).paidAmount;
+    if (paid === null) {
+      toast.error("No amount has been read from this receipt yet — review it first.");
+      return;
+    }
     setConfirming(order._id);
     try {
-      const paid = order.review.paidAmount ?? order.review.expectedAmount ?? order.totalPrice;
       await confirmPayment({
         orderId: order._id,
         paidAmount: paid,
@@ -149,9 +184,7 @@ export function AdminOrders() {
     return <p className="clay p-8 text-center text-sm text-muted-foreground">No orders yet.</p>;
   }
 
-  const paidCount = orders.filter(
-    (o) => o.status !== "pending" || (o.review?.paidAmount ?? 0) >= o.totalPrice,
-  ).length;
+  const paidCount = orders.filter((o) => paymentState(o).paid).length;
   const unpaidCount = orders.length - paidCount;
   const tipTotal = orders.reduce((sum, o) => sum + (o.review?.tipAmount ?? 0), 0);
 
@@ -431,21 +464,20 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function PaidPill({ order }: { order: Order }) {
-  const isPaid =
-    order.status === "approved" ||
-    order.status === "completed" ||
-    (order.proof?.declaredAmount ?? 0) >= order.totalPrice;
+  const { known, paid } = paymentState(order);
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
-        isPaid
+        paid
           ? "bg-emerald-600/15 text-emerald-700"
-          : "bg-amber-500/15 text-amber-700",
+          : known
+            ? "bg-amber-500/15 text-amber-700"
+            : "bg-slate-600/15 text-slate-700 dark:text-slate-300",
       )}
     >
-      {isPaid ? <BadgeCheck className="size-3" /> : <CircleAlert className="size-3" />}
-      {isPaid ? "Paid" : "Unpaid"}
+      {paid ? <BadgeCheck className="size-3" /> : <CircleAlert className="size-3" />}
+      {paid ? "Paid" : known ? "Unpaid" : "Unverified"}
     </span>
   );
 }
@@ -502,9 +534,7 @@ function PaidCell({
   onConfirm: () => void;
   confirming: boolean;
 }) {
-  const isPaid =
-    order.status !== "pending" ||
-    (order.review?.paidAmount ?? 0) >= order.totalPrice;
+  const { known, paid: isPaid } = paymentState(order);
 
   return (
     <div className="flex items-center gap-2">
@@ -513,11 +543,13 @@ function PaidCell({
           "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
           isPaid
             ? "bg-emerald-600/15 text-emerald-700"
-            : "bg-amber-500/15 text-amber-700",
+            : known
+              ? "bg-amber-500/15 text-amber-700"
+              : "bg-slate-600/15 text-slate-700 dark:text-slate-300",
         )}
       >
         {isPaid ? <BadgeCheck className="size-3" /> : <CircleAlert className="size-3" />}
-        {isPaid ? "Paid" : "Unpaid"}
+        {isPaid ? "Paid" : known ? "Unpaid" : "Unverified"}
       </span>
 
       {!order.proof && (
@@ -562,32 +594,50 @@ function PaidCell({
 
 function AlertBadges({ order }: { order: Order }) {
   const review = order.review;
-  const claimed = order.proof?.declaredAmount ?? review?.paidAmount ?? 0;
-  const shortBy = order.totalPrice - claimed;
-  const showShort = order.proof !== null && shortBy > 0;
+  const { paidAmount, shortBy, known, short } = paymentState(order);
   const showSpeed = review?.isSpeedPay === true;
   const tip = review?.tipAmount ?? 0;
-  const showLowTip = claimed > 0 && shortBy > 0 && tip > 0;
+  const showLowTip = known && short && tip > 0;
+  // A proof with nothing readable yet is its own alert. Reporting a shortfall
+  // here would be a guess dressed up as a number.
+  const showUnread = order.proof !== null && !known && order.status === "pending";
 
   if (!review && !order.proof) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
 
-  if (!showShort && !showSpeed && tip === 0) {
+  if (!short && !showSpeed && !showUnread && tip === 0) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
 
   return (
     <div className="flex flex-wrap gap-1.5">
       <AnimatePresence>
-        {showShort && (
+        {showUnread && (
+          <motion.span
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.85 }}
+            className="inline-flex items-center gap-1 rounded-full bg-slate-600/15 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300"
+            title="No amount has been read from this receipt yet."
+          >
+            <ScanLine className="size-3" />
+            {review?.readFailed ? "AI read failed" : "Amount not read"}
+          </motion.span>
+        )}
+        {short && shortBy !== null && (
           <motion.span
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.85 }}
             className="inline-flex items-center gap-1 rounded-full bg-rose-600/15 px-2 py-0.5 text-[11px] font-semibold text-rose-700"
           >
-            <CircleAlert className="size-3" /> Short {inr(shortBy)}
+            <CircleAlert className="size-3" />
+            Short {inr(shortBy)}
+            <span className="font-normal opacity-80">
+              {" "}
+              ({inr(paidAmount ?? 0)} of {inr(order.totalPrice)})
+            </span>
           </motion.span>
         )}
         {showSpeed && (
@@ -615,7 +665,7 @@ function AlertBadges({ order }: { order: Order }) {
             <HandCoins className="size-3" /> Tip {inr(tip)}
           </span>
         )}
-        {!showSpeed && !showLowTip && !showShort && tip === 0 && (
+        {!showSpeed && !showLowTip && !short && !showUnread && tip === 0 && (
           <span className="text-xs text-muted-foreground">—</span>
         )}
       </AnimatePresence>
@@ -795,6 +845,17 @@ function ReviewPanel({ order }: { order: Order }) {
               AI read <span className="font-semibold">{inr(review.paidAmount)}</span> against an
               expected <span className="font-semibold">{inr(review.expectedAmount ?? order.totalPrice)}</span>
               {review.tipAmount ? ` · tip ${inr(review.tipAmount)}` : ""}
+            </p>
+          )}
+          {review.readFailed && (
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+              The AI could not read this receipt. Run “AI review” again, or read the amount
+              yourself from the screenshot — it has not been treated as unpaid.
+            </p>
+          )}
+          {review.paidAmount == null && !review.readFailed && (
+            <p className="text-xs text-muted-foreground">
+              No amount was legible on the screenshot — check it manually before approving.
             </p>
           )}
           {review.stillNeeded && review.stillNeeded.length > 0 && (

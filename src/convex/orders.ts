@@ -101,7 +101,11 @@ export const reviewProof = mutation({
       .query("paymentReviews")
       .withIndex("by_proof", (q) => q.eq("proofId", proofId))
       .first();
-    if (already) return { queued: false as const, reviewId: already._id };
+    // A review that could not read the amount is worth retrying — clearing it
+    // here is what lets a re-scan replace a failed read instead of the row
+    // sticking forever on "amount not legible".
+    if (already?.readFailed) await ctx.db.delete(already._id);
+    else if (already) return { queued: false as const, reviewId: already._id };
 
     // Fail fast on a missing image or order rather than inside the job.
     const url = await ctx.storage.getUrl(proof.storageId);
@@ -135,7 +139,8 @@ export const analyzePaymentProofJob = internalMutation({
       .query("paymentReviews")
       .withIndex("by_proof", (q) => q.eq("proofId", proofId))
       .first();
-    if (already) return already._id;
+    if (already && !already.readFailed) return already._id;
+    if (already) await ctx.db.delete(already._id);
 
     const url = await ctx.storage.getUrl(proof.storageId);
     if (!url) throw new Error("Proof image is not reachable.");
@@ -152,6 +157,7 @@ export const analyzePaymentProofJob = internalMutation({
       expectedAmount: review.expectedAmount,
       tipAmount: review.tipAmount,
       isSpeedPay: review.isSpeedPay,
+      readFailed: review.readFailed,
       reviewedAt: Date.now(),
     });
   },
@@ -417,22 +423,29 @@ export const listAll = query({
               .withIndex("by_proof", (q) => q.eq("proofId", proof._id))
               .first()
           : undefined;
+        const { paidAmount, shortBy, paidSource } = resolvePaidAmount(
+          order,
+          proof,
+          review,
+        );
         return {
           ...order,
           clientAccountEmail: client?.email ?? order.clientEmail,
           clientAccountName: client?.name,
           proof: proof ?? null,
           review: review ?? null,
-          /** What the client claimed vs what the AI read vs what was due. */
-          mismatch: (proof && proof.declaredAmount !== undefined
-            ? proof.declaredAmount < order.totalPrice
+          /**
+           * What was actually paid, resolved once here so the board, the paid
+           * pill, and the counts can never disagree with each other.
+           */
+          paidAmount,
+          shortBy,
+          paidSource,
+          mismatch: (shortBy === null
+            ? "unknown"
+            : shortBy > 0
               ? "short"
-              : review?.paidAmount !== undefined && review.paidAmount < order.totalPrice
-                ? "short"
-                : "match"
-            : review?.paidAmount !== undefined && review.paidAmount < order.totalPrice
-              ? "short"
-              : "unknown") as "match" | "short" | "unknown",
+              : "match") as "match" | "short" | "unknown",
         };
       }),
     );
@@ -617,6 +630,7 @@ async function analyzePaymentProof(
     expectedAmount: expectedTotal,
     tipAmount: 0,
     isSpeedPay: false,
+    readFailed: true,
   };
 }
 
@@ -634,30 +648,131 @@ interface GeminiReviewOutput {
   expectedAmount: number;
   tipAmount: number;
   isSpeedPay: boolean;
+  /** The vision call produced nothing usable — do not infer an amount. */
+  readFailed: boolean;
+}
+
+/**
+ * The one place that decides how much was actually paid.
+ *
+ * The AI read of the receipt outranks the client's typed claim, because the
+ * claim is what they *say* they sent and the screenshot is what left the
+ * account. `null` means genuinely unknown — no proof, no review, or a failed
+ * read — and must never be flattened to zero, since a zero silently reports a
+ * client who paid nothing as short by the entire order total.
+ */
+function resolvePaidAmount(
+  order: Doc<"orders">,
+  proof: Doc<"paymentProofs"> | null | undefined,
+  review: Doc<"paymentReviews"> | null | undefined,
+): { paidAmount: number | null; shortBy: number | null; paidSource: "ai" | "declared" | "unknown" } {
+  const read = review?.paidAmount;
+  const declared = proof?.declaredAmount;
+
+  let paidAmount: number | null = null;
+  let paidSource: "ai" | "declared" | "unknown" = "unknown";
+  if (typeof read === "number" && Number.isFinite(read) && read >= 0) {
+    paidAmount = read;
+    paidSource = "ai";
+  } else if (typeof declared === "number" && Number.isFinite(declared) && declared >= 0) {
+    paidAmount = declared;
+    paidSource = "declared";
+  }
+
+  return {
+    paidAmount,
+    shortBy: paidAmount === null ? null : Math.max(0, order.totalPrice - paidAmount),
+    paidSource,
+  };
+}
+
+/**
+ * Coerces whatever the model returned into a rupee amount.
+ *
+ * Vision models routinely answer "55", "₹55.00" or 55 for the same field. A
+ * strict `typeof === "number"` check threw all of those away and left the board
+ * reporting a full-total shortfall for a receipt it had actually read, so the
+ * value is parsed instead of type-gated.
+ */
+function toAmount(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value !== "string") return null;
+  // Drop currency marks, separators, and any trailing "paid"/"debited" words.
+  const cleaned = value.replace(/[^\d.]/g, "");
+  if (cleaned === "") return null;
+  const parsed = Number(cleaned);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  // A decimal point in Indian grouping ("1.999") is thousands, not rupees.
+  return value.includes(",") || /\.\d{3}\b/.test(cleaned)
+    ? Math.round(parsed)
+    : Math.round(parsed * 100) / 100;
 }
 
 async function analyzeWithGemini(
   ctx: MutationCtx,
   { imageUrl, order, expectedTotal, studioUpiId }: GeminiReviewInput,
 ): Promise<GeminiReviewOutput> {
-  const vision = await import("@google/generative-ai").then((m) =>
-    m.GoogleGenerativeAI
-  );
-  const genAI = new vision(GEMINI_API_KEY!);
+  const { GoogleGenerativeAI, SchemaType } = await import("@google/generative-ai");
+  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY!);
   const model = genAI.getGenerativeModel({
     model: GEMINI_MODEL,
     systemInstruction: [
       "You are the payment-proof auditor for Eden, a design studio.",
       "Read the uploaded screenshot and extract the payer proof details.",
-      "Respond with JSON only, no other text.",
+      "The amount actually debited is the most important field. Read it even if",
+      "it is small or does not match what the client was supposed to pay.",
     ].join("\n"),
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 8192,
+      // Constrained decoding: without this the model answers in prose or
+      // truncates mid-object, and the whole review silently degrades to
+      // "amount not legible" no matter how clear the screenshot was.
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: SchemaType.OBJECT,
+        properties: {
+          // Text, not a number: a receipt can read "₹55.00", "55" or "1,999"
+          // and the model may not be able to say "not visible" as a JSON number.
+          // An empty string means unreadable, which toAmount turns into null.
+          paidAmount: { type: SchemaType.STRING },
+          tipAmount: { type: SchemaType.STRING },
+          payerName: { type: SchemaType.STRING },
+          payeeName: { type: SchemaType.STRING },
+          payeeHandle: { type: SchemaType.STRING },
+          channel: { type: SchemaType.STRING },
+          transactionDate: { type: SchemaType.STRING },
+          upiTransactionId: { type: SchemaType.STRING },
+          referenceIds: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+          confidence: { type: SchemaType.STRING },
+          ocrIssues: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+        },
+        required: [
+          "paidAmount",
+          "tipAmount",
+          "payerName",
+          "payeeName",
+          "payeeHandle",
+          "channel",
+          "transactionDate",
+          "upiTransactionId",
+          "referenceIds",
+          "confidence",
+          "ocrIssues",
+        ],
+      },
+    },
   });
+
+  const { base64, mimeType } = await imageUrlToBase64(ctx, imageUrl);
 
   const result = await model.generateContent([
     {
       inlineData: {
-        data: await imageUrlToBase64(ctx, imageUrl),
-        mimeType: "image/jpeg",
+        data: base64,
+        mimeType,
       },
     },
     {
@@ -677,8 +792,10 @@ async function analyzeWithGemini(
         "  \"ocrIssues\": string[]",
         "}",
         "Rules:",
-        "- paidAmount is the total debited in INR, or null if unreadable.",
-        "- tipAmount is any extra amount above the visible billed amount; if none is visible, 0.",
+        "- paidAmount is the amount actually debited, exactly as printed (e.g. \"55\" or",
+        "  \"₹55.00\"). Use an empty string if the amount is not visible at all.",
+        "  Never substitute the expected or billed amount for the amount paid.",
+        "- tipAmount is any extra amount above the visible billed amount; empty string or 0 if none.",
         "- payerName is who SENT the money (the source account/wallet holder).",
         "  The person named next to 'to' is the RECIPIENT, not the payer - put that in payeeName.",
         "- payeeName is the person/organisation who RECEIVED the money.",
@@ -719,19 +836,22 @@ async function analyzeWithGemini(
     throw new Error("Gemini returned invalid JSON for the proof image.");
   }
 
-  const paidAmount =
-    typeof parsed.paidAmount === "number" && Number.isFinite(parsed.paidAmount)
-      ? parsed.paidAmount
-      : null;
-  const tipAmount = Math.max(0, Number(parsed.tipAmount) || 0);
-  const payerName = typeof parsed.payerName === "string" ? parsed.payerName : null;
-  const payeeName = typeof parsed.payeeName === "string" ? parsed.payeeName : null;
-  const payeeHandle = typeof parsed.payeeHandle === "string" ? parsed.payeeHandle : null;
+  const paidAmount = toAmount(parsed.paidAmount);
+  const tipAmount = toAmount(parsed.tipAmount) ?? 0;
+  // Empty strings are how the schema expresses "not visible".
+  const nonEmpty = (value: unknown): string | null => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    return trimmed === "" ? null : trimmed;
+  };
+  const payerName = nonEmpty(parsed.payerName);
+  const payeeName = nonEmpty(parsed.payeeName);
+  const payeeHandle = nonEmpty(parsed.payeeHandle);
   const channel = typeof parsed.channel === "string" ? parsed.channel : "unknown";
   const referenceIds = Array.isArray(parsed.referenceIds)
     ? parsed.referenceIds.filter((id): id is string => typeof id === "string")
     : [];
-  const transactionDate = typeof parsed.transactionDate === "string" ? parsed.transactionDate : null;
+  const transactionDate = nonEmpty(parsed.transactionDate);
   const confidence = parsed.confidence as string | undefined;
   const ocrIssues = Array.isArray(parsed.ocrIssues) ? parsed.ocrIssues : [];
 
@@ -814,6 +934,7 @@ async function analyzeWithGemini(
     expectedAmount: expectedTotal,
     tipAmount,
     isSpeedPay,
+    readFailed: false,
   };
 }
 
@@ -912,27 +1033,55 @@ function buildSummary({
   return parts.join(" — ") + ".";
 }
 
+/**
+ * Sniffs the real image format from its magic bytes.
+ *
+ * The upload path accepts any `image/*` and the compressor returns the original
+ * bytes untouched when a screenshot is already small, so a PNG or WEBP routinely
+ * arrives labelled as JPEG. Telling the vision model a PNG is a JPEG makes it
+ * fail to decode the receipt, which reads as "amount not legible" rather than as
+ * a broken image.
+ */
+function sniffImageMime(bytes: Uint8Array): string {
+  if (bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (bytes.length > 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e) {
+    return "image/png";
+  }
+  if (
+    bytes.length > 12 &&
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  ) {
+    return "image/webp";
+  }
+  if (bytes.length > 2 && bytes[0] === 0x42 && bytes[1] === 0x4d) return "image/bmp";
+  return "image/jpeg";
+}
+
 async function imageUrlToBase64(
   ctx: MutationCtx,
   url: string,
-): Promise<string> {
+): Promise<{ base64: string; mimeType: string }> {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(20_000),
   });
   if (!response.ok) {
     throw new Error(`Cannot download proof image: HTTP ${response.status}`);
   }
-  const bytes = await response.arrayBuffer();
-  if (bytes.byteLength > 10 * 1024 * 1024) {
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength > 10 * 1024 * 1024) {
     throw new Error("Proof image is too large (max 10 MB).");
   }
-  const base64 = btoa(
-    new Uint8Array(bytes).reduce(
-      (acc, byte) => acc + String.fromCharCode(byte),
-      "",
-    ),
-  );
-  return base64;
+  const bytes = new Uint8Array(buffer);
+  // Chunked so a multi-megabyte screenshot cannot blow the argument limit of a
+  // single reduce.
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  }
+  return { base64: btoa(binary), mimeType: sniffImageMime(bytes) };
 }
 
 /** Financial widget: completed orders within a window → volume, revenue, 20% cut. */
