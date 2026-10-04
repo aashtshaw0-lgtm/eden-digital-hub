@@ -26,6 +26,7 @@ const Checkout = lazy(() => import("./pages/Checkout.tsx"));
 const Admin = lazy(() => import("./pages/Admin.tsx"));
 const Legal = lazy(() => import("./pages/Legal.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
+const Credits = lazy(() => import("./pages/Credits.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -183,6 +184,7 @@ createRoot(document.getElementById("root")!).render(
                     element={<AuthPage redirectAfterAuth="/portal" />}
                   />
                   <Route path="/legal" element={<Legal />} />
+                  <Route path="/credits" element={<Credits />} />
                   <Route
                     path="/portal"
                     element={

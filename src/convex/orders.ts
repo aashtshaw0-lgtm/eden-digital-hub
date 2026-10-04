@@ -1,10 +1,14 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query } from "./_generated/server";
-import type { MutationCtx, QueryCtx } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { requireAdmin } from "./lib/rbac";
 import { enforceRateLimit } from "./lib/rateLimit";
+import {
+  PREMIUM_THRESHOLD as PREMIUM_TIP_THRESHOLD,
+  tierFor as tipTierFor,
+} from "./credits";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -38,9 +42,14 @@ export const generateProofUrl = mutation({
     if (userId === null) throw new Error("Sign in to attach a payment proof.");
     const order = await ctx.db.get(orderId);
     if (!order) throw new Error("Order not found.");
-    if (order.clientId !== userId) throw new Error("That order does not belong to you.");
     if (order.status !== "pending") throw new Error("Only pending orders can receive a payment proof.");
-    await enforceRateLimit(ctx, { name: "proofUpload", key: userId, max: 20, windowMs: 3600_000 });
+    // The owner can upload their own proof; an admin can attach one on their behalf
+    // after the client sends it over WhatsApp.
+    if (order.clientId !== userId) {
+      await requireAdmin(ctx);
+    } else {
+      await enforceRateLimit(ctx, { name: "proofUpload", key: userId, max: 20, windowMs: 3600_000 });
+    }
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -53,8 +62,10 @@ export const attachProof = mutation({
     if (userId === null) throw new Error("Sign in to attach a payment proof.");
     const order = await ctx.db.get(orderId);
     if (!order) throw new Error("Order not found.");
-    if (order.clientId !== userId) throw new Error("That order does not belong to you.");
     if (order.status !== "pending") throw new Error("Only pending orders can receive a payment proof.");
+    if (order.clientId !== userId) {
+      await requireAdmin(ctx);
+    }
     const existing = await ctx.db
       .query("paymentProofs")
       .withIndex("by_order", (q) => q.eq("orderId", orderId))
@@ -69,7 +80,13 @@ export const attachProof = mutation({
   },
 });
 
-/** AI review of the uploaded proof — decides what is still missing + risk signals. */
+/**
+ * AI review of the uploaded proof — decides what is still missing + risk signals.
+ *
+ * Stays a mutation so it can read and write the proof + review rows directly.
+ * The vision call is bounded by an abort signal; if Gemini is slow or missing,
+ * the review falls back to a safe human checklist instead of failing the click.
+ */
 export const reviewProof = mutation({
   args: { proofId: v.id("paymentProofs") },
   handler: async (ctx, { proofId }) => {
@@ -161,7 +178,7 @@ export const listMine = query({
   },
 });
 
-/** Every order with client identity — admin board. */
+/** Every order with client identity, proof, and AI review — admin board. */
 export const listAll = query({
   args: {},
   handler: async (ctx) => {
@@ -170,17 +187,35 @@ export const listAll = query({
     return await Promise.all(
       orders.map(async (order) => {
         const client = await ctx.db.get(order.clientId);
+        const proof = await ctx.db
+          .query("paymentProofs")
+          .withIndex("by_order", (q) => q.eq("orderId", order._id))
+          .first();
+        const review = proof
+          ? await ctx.db
+              .query("paymentReviews")
+              .withIndex("by_proof", (q) => q.eq("proofId", proof._id))
+              .first()
+          : undefined;
         return {
           ...order,
           clientAccountEmail: client?.email ?? order.clientEmail,
           clientAccountName: client?.name,
+          proof: proof ?? null,
+          review: review ?? null,
         };
       }),
     );
   },
 });
 
-/** Record a customer tip attached to an order. */
+/**
+ * Record a customer tip attached to an order.
+ *
+ * A tip that clears the premium threshold (or the legendary one) also grants a
+ * credit automatically, so contributing at checkout is enough to land on the
+ * credits wall — no admin step required. The credit is idempotent per order.
+ */
 export const recordTip = mutation({
   args: { orderId: v.id("orders"), tipAmount: v.number() },
   handler: async (ctx, { orderId, tipAmount }) => {
@@ -194,7 +229,9 @@ export const recordTip = mutation({
       totalPrice: order.totalPrice + tipAmount,
       updatedAt: Date.now(),
     });
-    return null;
+
+    const granted = await grantCreditForTip(ctx, { order, tipAmount });
+    return { creditGranted: granted };
   },
 });
 
@@ -251,7 +288,49 @@ export const updateStatus = mutation({
 });
 
 /**
- * Payment-proof OCR + AI analysis.
+ * Grants a credit when a tip clears the premium/legendary threshold.
+ *
+ * Kept server-side next to `recordTip` so the tier gate can't be bypassed from
+ * the client. Idempotent per order — re-tipping updates the same entry rather
+ * than duplicating the name.
+ */
+async function grantCreditForTip(
+  ctx: MutationCtx,
+  args: { order: Doc<"orders">; tipAmount: number },
+): Promise<boolean> {
+  const { order, tipAmount } = args;
+  if (tipAmount < PREMIUM_TIP_THRESHOLD) return false;
+
+  const existing = (
+    await ctx.db
+      .query("credits")
+      .withIndex("by_created", (q) => q.gte("createdAt", 0))
+      .collect()
+  ).find((row) => row.sourceOrderId === order._id);
+
+  const tier = tipTierFor(tipAmount);
+  const fields = {
+    name: order.clientName,
+    greatness:
+      tier === "legendary"
+        ? "Legendary supporter — carried the studio."
+        : "Premium supporter — tipped above the tier line.",
+    amount: tipAmount,
+    tier,
+    sourceOrderId: order._id,
+    autoGranted: true,
+  };
+
+  if (existing) {
+    await ctx.db.patch(existing._id, fields);
+    return true;
+  }
+
+  await ctx.db.insert("credits", { ...fields, createdAt: Date.now() });
+  return true;
+}
+
+/** Payment-proof OCR + AI analysis.
  *
  * When `GEMINI_API_KEY` is configured in the Keys tab, this action calls
  * Gemini Vision to read the uploaded payer-proof screenshot and extract the
@@ -266,7 +345,7 @@ async function analyzePaymentProof(
   ctx: MutationCtx,
   args: { imageUrl: string; order: Doc<"orders"> },
 ) {
-  const { order } = args;
+  const { order, imageUrl } = args;
   const expectedTotal = order.totalPrice;
 
   if (GEMINI_API_KEY) {
@@ -399,7 +478,6 @@ async function analyzeWithGemini(
   const confidence = parsed.confidence as string | undefined;
   const ocrIssues = Array.isArray(parsed.ocrIssues) ? parsed.ocrIssues : [];
 
-  const expectedDate = new Date(order.createdAt ?? Date.now());
   const isSpeedPay = isDateWithinDays(transactionDate, -2);
 
   const stillNeeded: string[] = [];
@@ -533,7 +611,7 @@ async function imageUrlToBase64(
   url: string,
 ): Promise<string> {
   const response = await fetch(url, {
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(20_000),
   });
   if (!response.ok) {
     throw new Error(`Cannot download proof image: HTTP ${response.status}`);

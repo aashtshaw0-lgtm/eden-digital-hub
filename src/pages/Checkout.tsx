@@ -1,12 +1,19 @@
 import { useCart } from "@/context/CartProvider";
 import { useSettings } from "@/context/SettingsProvider";
 import { api } from "@/convex/_generated/api";
+import {
+  LEGENDARY_THRESHOLD,
+  LEGENDARY_TIP_THRESHOLD,
+  PREMIUM_THRESHOLD,
+  PREMIUM_TIP_THRESHOLD,
+} from "@/lib/credits";
 import { inr } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { useSeo } from "@/lib/seo";
 import type { Id } from "@/convex/_generated/dataModel";
-import { motion } from "framer-motion";
-import { Check, Copy, Loader2, QrCode, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Check, Copy, HeartHandshake, Loader2, QrCode, Sparkles, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -17,14 +24,31 @@ interface Req {
   clientWhatsapp: string;
 }
 
+/** Tip presets shown as quick-pick chips, plus a custom amount box. */
+const TIP_PRESETS = [0, 100, 250, 500];
+
+/** Mirrors the server-side tier gate so the copy matches what credits will do. */
+function tipTierName(tip: number): string | null {
+  if (tip >= LEGENDARY_THRESHOLD) return "Legendary";
+  if (tip >= PREMIUM_THRESHOLD) return "Premium";
+  return null;
+}
+
 export default function Checkout() {
   useSeo({ title: `Checkout | Eden - Digital Design & Management` });
   const { items, total, removeItem, clear } = useCart();
   const { upiId, qrImageUrl } = useSettings();
   const navigate = useNavigate();
   const createOrder = useMutation(api.orders.create);
+  const recordTip = useMutation(api.orders.recordTip);
   const [paying, setPaying] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [tipAmount, setTipAmount] = useState(0);
+  const [customTip, setCustomTip] = useState("");
+
+  const tip = customTip.trim() === "" ? tipAmount : Math.max(0, Number(customTip) || 0);
+  const grandTotal = total + tip;
+  const tierLabel = useMemo(() => tipTierName(tip), [tip]);
 
   const copyUpi = async () => {
     try {
@@ -42,7 +66,7 @@ export default function Checkout() {
     try {
       for (const item of items) {
         const r = item.requirements as unknown as Req;
-        await createOrder({
+        const orderId = await createOrder({
           serviceId: item.serviceId as Id<"services">,
           tierId: item.tierId as Id<"serviceTiers">,
           requirements: item.requirements,
@@ -50,6 +74,10 @@ export default function Checkout() {
           clientEmail: r.clientEmail,
           clientWhatsapp: r.clientWhatsapp,
         });
+        // The tip rides along with the order so the admin board can alert on it.
+        if (tip > 0) {
+          await recordTip({ orderId, tipAmount: tip });
+        }
       }
       clear();
       toast.success("Order received — we'll confirm on WhatsApp shortly.");
@@ -114,8 +142,101 @@ export default function Checkout() {
           ))}
 
           <div className="clay flex items-center justify-between p-5">
-            <span className="text-sm font-medium text-muted-foreground">Total payable</span>
-            <span className="font-display text-2xl font-semibold">{inr(total)}</span>
+            <span className="text-sm font-medium text-muted-foreground">Subtotal</span>
+            <span className="font-display text-lg font-semibold">{inr(total)}</span>
+          </div>
+
+          {/* Tip */}
+          <motion.section
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.05 }}
+            className="clay overflow-hidden p-5"
+          >
+            <div className="flex items-start gap-3">
+              <span className="tint flex size-9 shrink-0 items-center justify-center rounded-xl">
+                <HeartHandshake className="size-4" />
+              </span>
+              <div>
+                <h2 className="font-display text-base font-semibold">Add a tip</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Optional — tips above ₹{PREMIUM_TIP_THRESHOLD} earn a premium credit,
+                  ₹{LEGENDARY_TIP_THRESHOLD} and above earns a legendary one.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {TIP_PRESETS.map((preset) => {
+                const active = customTip.trim() === "" && tipAmount === preset;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setTipAmount(preset);
+                      setCustomTip("");
+                    }}
+                    className={cn(
+                      "clay-sm rounded-full px-4 py-2 text-sm font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground ring-2 ring-primary/50"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {preset === 0 ? "No tip" : inr(preset)}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="clay-inset mt-3 flex items-center gap-2 rounded-xl px-3.5 py-2.5">
+              <span className="text-sm font-medium text-muted-foreground">Custom</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={customTip}
+                onChange={(e) => setCustomTip(e.target.value)}
+                placeholder={String(tipAmount)}
+                className="w-full bg-transparent text-right text-sm font-medium outline-none placeholder:text-muted-foreground/60"
+              />
+              <span className="text-sm font-medium text-muted-foreground">INR</span>
+            </div>
+
+            <AnimatePresence>
+              {tierLabel && (
+                <motion.p
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-3 flex items-center gap-2 text-xs font-medium text-primary"
+                >
+                  <Sparkles className="size-3.5" />
+                  {tierLabel} credit unlocked — your name leads the credits wall.
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </motion.section>
+
+          <div className="clay flex items-center justify-between p-5">
+            <span className="text-sm font-medium text-muted-foreground">
+              Total payable
+              {tip > 0 && (
+                <span className="ml-2 text-xs text-primary">
+                  incl. {inr(tip)} tip
+                </span>
+              )}
+            </span>
+            <motion.span
+              key={grandTotal}
+              initial={{ scale: 0.96, opacity: 0.6 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 320, damping: 22 }}
+              className="font-display text-2xl font-semibold"
+            >
+              {inr(grandTotal)}
+            </motion.span>
           </div>
         </section>
 
@@ -158,7 +279,7 @@ export default function Checkout() {
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3.5 text-sm font-semibold text-primary-foreground shadow-md transition hover:brightness-110 disabled:opacity-60"
           >
             {paying && <Loader2 className="size-4 animate-spin" />}
-            I Have Paid · {inr(total)}
+            I Have Paid · {inr(grandTotal)}
           </button>
           <p className="text-center text-[11px] leading-snug text-muted-foreground">
             Your order lands in the studio queue instantly; a manager confirms

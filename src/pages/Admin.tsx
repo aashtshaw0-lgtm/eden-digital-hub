@@ -3,6 +3,7 @@ import { AdminOrders } from "@/components/eden/admin/AdminOrders";
 import { AdminPortfolio } from "@/components/eden/admin/AdminPortfolio";
 import { AdminSettings } from "@/components/eden/admin/AdminSettings";
 import { AdminCalculator } from "@/components/eden/admin/AdminCalculator";
+import { AdminCredits } from "@/components/eden/admin/AdminCredits";
 import { AdminRoles } from "@/components/eden/admin/AdminRoles";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/convex/_generated/api";
@@ -13,6 +14,7 @@ import { useState } from "react";
 
 const TABS: { key: string; label: string; superOnly?: boolean }[] = [
   { key: "orders", label: "Orders" },
+  { key: "credits", label: "Credits" },
   { key: "inbox", label: "Live Inbox" },
   { key: "portfolio", label: "Portfolio" },
   { key: "website", label: "Website" },
@@ -55,6 +57,7 @@ export default function Admin() {
       </nav>
 
       {tab === "orders" && <AdminOrders />}
+      {tab === "credits" && <AdminCredits />}
       {tab === "inbox" && <AdminInbox />}
       {tab === "portfolio" && <AdminPortfolio />}
       {tab === "website" && <AdminSettings />}

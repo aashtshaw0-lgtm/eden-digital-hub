@@ -156,9 +156,20 @@ const schema = defineSchema(
     // credit ledger — names + greatness descriptions editable by admin
     credits: defineTable({
       name: v.string(),
+      /** Short "greatness" line shown on the credits page, e.g. "Legendary support". */
       greatness: v.optional(v.string()),
+      /** Optional numeric contribution used for the greatness tier gate. */
+      amount: v.optional(v.number()),
+      /** Derived tier: "standard" (<100), "premium" (>=100), "legendary" (>=500). */
+      tier: v.optional(v.string()),
+      /** Order that earned this credit automatically, when tip-driven. */
+      sourceOrderId: v.optional(v.id("orders")),
+      /** True when the credit was created from a tip rather than by hand. */
+      autoGranted: v.optional(v.boolean()),
       createdAt: v.number(),
-    }).index("by_name", ["name"]),
+    })
+      .index("by_name", ["name"])
+      .index("by_created", ["createdAt"]),
   },
   {
     schemaValidation: false,
