@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { useSeo } from "@/lib/seo";
 import type { Id } from "@/convex/_generated/dataModel";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, CircleAlert, Copy, HeartHandshake, Loader2, QrCode, Sparkles, Trash2, Upload } from "lucide-react";
+import { Check, Copy, HeartHandshake, Loader2, QrCode, Sparkles, Trash2, Upload } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { Link } from "react-router";
@@ -53,17 +53,16 @@ export default function Checkout() {
   // Proof details — the order cannot be submitted without them.
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [utr, setUtr] = useState("");
-  const [declaredAmount, setDeclaredAmount] = useState("");
-  const [payerName, setPayerName] = useState("");
+  const [txnId, setTxnId] = useState("");
   const proofInputRef = useRef<HTMLInputElement | null>(null);
   // Orders just created, so we can ask for proof before leaving the page.
   const [createdOrders, setCreatedOrders] = useState<CreatedOrder[] | null>(null);
 
   const tip = customTip.trim() === "" ? tipAmount : Math.max(0, Number(customTip) || 0);
   const grandTotal = total + tip;
-  const declaredValue = Number(declaredAmount) || 0;
-  // Screenshot + UTR + amount are all required before "I Have Paid" unlocks.
-  const proofReady = proofFile !== null && utr.trim().length >= 4 && declaredValue > 0;
+  // Screenshot + UTR are all a client can be asked for; the amount and payer
+  // name are read from the screenshot by the AI review instead of typed.
+  const proofReady = proofFile !== null && utr.trim().length >= 4;
   const tierLabel = useMemo(() => tipTierName(tip), [tip]);
 
   const copyUpi = async () => {
@@ -79,7 +78,7 @@ export default function Checkout() {
 
   const confirmPayment = async () => {
     if (!proofFile || !proofReady) {
-      toast.error("Attach your screenshot, UTR and the amount you paid first.");
+      toast.error("Attach your screenshot and enter the UTR first.");
       return;
     }
     setPaying(true);
@@ -88,12 +87,32 @@ export default function Checkout() {
       // Upload the screenshot to storage first; the order + proof are then
       // created together so no order can exist without evidence.
       const uploadUrl = await generateProofUrl({});
-      const res = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": proofFile.type || "image/jpeg" },
-        body: proofFile,
-      });
-      if (!res.ok) throw new Error("Couldn't upload your screenshot — please try again.");
+
+      let res: Response;
+      try {
+        res = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": proofFile.type || "image/jpeg" },
+          body: proofFile,
+        });
+      } catch (err) {
+        // Surface the real cause instead of the browser's bare "fetch failed",
+        // which says nothing about whether it was the network or the host.
+        console.error("[checkout] storage upload failed:", err, {
+          host: new URL(uploadUrl).host,
+          fileType: proofFile.type,
+          size: proofFile.size,
+        });
+        throw new Error(
+          "Couldn't reach the upload service. Check your connection and tap I Have Paid again.",
+        );
+      }
+      if (!res.ok) {
+        console.error("[checkout] upload rejected:", res.status, await res.text());
+        throw new Error(
+          `Upload rejected (${res.status}). If you picked a very large photo, try a smaller screenshot.`,
+        );
+      }
       const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
 
       for (const item of items) {
@@ -108,8 +127,7 @@ export default function Checkout() {
           tipAmount: tip,
           storageId,
           utr,
-          declaredAmount: declaredValue,
-          payerName: payerName || undefined,
+          txnId: txnId || undefined,
         });
         created.push({
           orderId,
@@ -399,7 +417,7 @@ export default function Checkout() {
             </button>
 
             <p className="pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              2 · Enter the payment details
+              2 · Enter the payment references
             </p>
             <input
               value={utr}
@@ -408,37 +426,16 @@ export default function Checkout() {
               inputMode="numeric"
               className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
             />
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="number"
-                min={0}
-                value={declaredAmount}
-                onChange={(e) => setDeclaredAmount(e.target.value)}
-                placeholder="Amount you paid"
-                className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm tabular-nums outline-none focus:ring-2 focus:ring-primary/40"
-              />
-              <input
-                value={payerName}
-                onChange={(e) => setPayerName(e.target.value)}
-                placeholder="Who paid"
-                className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
-              />
-            </div>
-
-            <AnimatePresence>
-              {declaredValue > 0 && declaredValue < grandTotal && (
-                <motion.p
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="flex items-start gap-1.5 text-[11px] leading-snug text-amber-700"
-                >
-                  <CircleAlert className="mt-px size-3 shrink-0" />
-                  That is {inr(grandTotal - declaredValue)} short of {inr(grandTotal)}. You can still
-                  submit — the studio will confirm or decline with a reason.
-                </motion.p>
-              )}
-            </AnimatePresence>
+            <input
+              value={txnId}
+              onChange={(e) => setTxnId(e.target.value)}
+              placeholder="Transaction ID (optional)"
+              className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+            />
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              We read the amount, date and payer name straight from your screenshot — no need to
+              type them.
+            </p>
           </motion.div>
         </aside>
       </div>

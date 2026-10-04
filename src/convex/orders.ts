@@ -174,7 +174,8 @@ export const createWithProof = mutation({
     tipAmount: v.optional(v.number()),
     storageId: v.id("_storage"),
     utr: v.string(),
-    declaredAmount: v.number(),
+    txnId: v.optional(v.string()),
+    declaredAmount: v.optional(v.number()),
     payerName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -189,7 +190,6 @@ export const createWithProof = mutation({
 
     const utr = args.utr.trim();
     if (utr.length < 4) throw new Error("Enter the UPI reference / UTR from your payment app.");
-    if (args.declaredAmount <= 0) throw new Error("Enter the amount you paid.");
 
     const tip = Math.max(0, args.tipAmount ?? 0);
     const now = Date.now();
@@ -213,6 +213,7 @@ export const createWithProof = mutation({
       orderId,
       storageId: args.storageId,
       utr,
+      txnId: args.txnId?.trim() || undefined,
       declaredAmount: args.declaredAmount,
       payerName: args.payerName?.trim() || undefined,
       uploadedAt: now,

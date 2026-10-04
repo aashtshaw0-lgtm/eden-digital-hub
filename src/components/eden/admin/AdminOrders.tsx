@@ -27,6 +27,7 @@ type Order = Doc<"orders"> & {
     storageId: Id<"_storage">;
     uploadedAt: number;
     utr?: string;
+    txnId?: string;
     declaredAmount?: number;
     payerName?: string;
   } | null;
@@ -689,6 +690,10 @@ function ReviewPanel({ order }: { order: Order }) {
           <dd className="font-medium tabular-nums">{order.proof?.utr ?? "—"}</dd>
         </div>
         <div>
+          <dt className="text-muted-foreground">Transaction ID</dt>
+          <dd className="truncate font-medium">{order.proof?.txnId ?? "—"}</dd>
+        </div>
+        <div>
           <dt className="text-muted-foreground">Declared amount</dt>
           <dd className="font-medium tabular-nums">
             {order.proof?.declaredAmount != null ? inr(order.proof.declaredAmount) : "—"}
@@ -698,7 +703,7 @@ function ReviewPanel({ order }: { order: Order }) {
           <dt className="text-muted-foreground">Paid by</dt>
           <dd className="font-medium">{order.proof?.payerName ?? "—"}</dd>
         </div>
-        <div>
+        <div className="col-span-2">
           <dt className="text-muted-foreground">Order total</dt>
           <dd className="font-medium tabular-nums">{inr(order.totalPrice)}</dd>
         </div>

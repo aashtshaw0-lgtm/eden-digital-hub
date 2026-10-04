@@ -146,9 +146,11 @@ const schema = defineSchema(
       storageId: v.id("_storage"),
       /** UPI reference / UTR the client typed in alongside the screenshot. */
       utr: v.optional(v.string()),
-      /** Amount the client claims they paid. */
+      /** App-level transaction ID shown in the payment app's detail view. */
+      txnId: v.optional(v.string()),
+      /** Amount the client claims they paid. Read from the screenshot by AI. */
       declaredAmount: v.optional(v.number()),
-      /** Name of the person who made the payment. */
+      /** Name of the person who made the payment. Read from the screenshot by AI. */
       payerName: v.optional(v.string()),
       uploadedAt: v.number(),
     }).index("by_order", ["orderId"]),
