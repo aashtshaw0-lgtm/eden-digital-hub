@@ -2,6 +2,8 @@ import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { enforceRateLimit } from "./lib/rateLimit";
 import { requireAdmin } from "./lib/rbac";
 
 /**
@@ -91,16 +93,38 @@ async function countUses(
 /**
  * Validates a code for one signed-in client and returns the discount.
  *
- * Returns a `code` describing the refusal rather than throwing, so checkout can
- * show "this coupon isn't for your account" without treating a typo as a crash.
+ * A mutation rather than a query on purpose: the per-account probe budget below
+ * has to be written transactionally, and Convex forbids writes inside a query.
+ * Left as a query, this endpoint was an unthrottled oracle for guessing the
+ * studio's coupon codes — including ones shared privately with named people.
  */
-export const validate = query({
+export const validate = mutation({
   args: { code: v.string() },
   handler: async (ctx, args): Promise<CouponCheck> => {
     const code = normalizeCode(args.code);
     if (code === "") {
       return { ok: false, discount: 0, code: "not_found", message: "Enter a coupon code." };
     }
+
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      return {
+        ok: false,
+        discount: 0,
+        code: "not_found",
+        message: "Sign in to use a coupon code.",
+      };
+    }
+
+    // Codes are short and human-chosen ("EDEN20"), so guessing is cheap
+    // without this. Twenty probes every ten minutes is enough to redeem a
+    // shared code and hopeless as a sweep.
+    await enforceRateLimit(ctx, {
+      name: "couponValidate",
+      key: userId,
+      max: 20,
+      windowMs: 600_000,
+    });
 
     const coupon = await ctx.db
       .query("coupons")
@@ -116,7 +140,7 @@ export const validate = query({
       };
     }
 
-    return await checkCoupon(ctx, coupon, null);
+    return await checkCoupon(ctx, coupon, userId);
   },
 });
 

@@ -2,6 +2,7 @@ import { useCart } from "@/context/CartProvider";
 import { useSettings } from "@/context/SettingsProvider";
 import { api } from "@/convex/_generated/api";
 import { discountFor } from "@/convex/coupons";
+import type { CouponCheck } from "@/convex/coupons";
 import {
   LEGENDARY_THRESHOLD,
   LEGENDARY_TIP_THRESHOLD,
@@ -14,8 +15,8 @@ import { useSeo } from "@/lib/seo";
 import type { Id } from "@/convex/_generated/dataModel";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Copy, HeartHandshake, Loader2, QrCode, Sparkles, TicketPercent, Trash2, Upload, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
-import { useMutation, useAction, useQuery } from "convex/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useAction } from "convex/react";
 import { uploadProofImage } from "@/lib/imageUpload";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -72,8 +73,57 @@ export default function Checkout() {
 
   // Coupon — validated server-side, priced here with the same helper the
   // server uses so the preview can never disagree with the real charge.
-  // `validate` treats an empty code as "not found", so this is safe to always run.
-  const couponCheck = useQuery(api.coupons.validate, { code: appliedCode });
+  // Coupon validation is a mutation (the probe budget is written
+  // transactionally), so it runs on demand rather than reactively.
+  const checkCouponCode = useMutation(api.coupons.validate);
+  const [couponCheck, setCouponCheck] = useState<CouponCheck | null>(null);
+
+  const runCouponCheck = useCallback(
+    async (code: string) => {
+      const trimmed = code.trim();
+      // Callers clear the current result themselves; this never writes state
+      // synchronously, so the effect that kicks it off stays clean.
+      if (trimmed === "") return;
+      try {
+        setCouponCheck(await checkCouponCode({ code: trimmed }));
+      } catch {
+        setCouponCheck({
+          ok: false,
+          discount: 0,
+          code: "not_found",
+          message: "That code couldn't be checked right now — try again.",
+        });
+      }
+    },
+    [checkCouponCode],
+  );
+
+  // A code arriving in the URL is checked once on arrival. The result is applied
+  // inside a promise callback (never synchronously in the effect body), and a
+  // stale response for an old code is discarded rather than overwriting a newer
+  // one when someone tries two codes quickly.
+  useEffect(() => {
+    if (appliedCode === "") return;
+    let cancelled = false;
+    void checkCouponCode({ code: appliedCode }).then(
+      (result) => {
+        if (!cancelled) setCouponCheck(result);
+      },
+      () => {
+        if (!cancelled) {
+          setCouponCheck({
+            ok: false,
+            discount: 0,
+            code: "not_found",
+            message: "That code couldn't be checked right now — try again.",
+          });
+        }
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [appliedCode, checkCouponCode]);
   const discount = couponCheck?.ok
     ? discountFor({ kind: couponCheck.kind ?? "percent", value: couponCheck.value ?? 0 }, subtotal)
     : 0;
@@ -126,7 +176,10 @@ export default function Checkout() {
           storageId,
           utr,
           txnId: txnId || undefined,
-          couponCode: appliedCode || undefined,
+          // Only send a code that actually validated. Sending a bad one would make the
+          // server throw and fail the whole order, after the client had already
+          // paid and uploaded their proof. The server still re-validates.
+          couponCode: couponCheck?.ok ? appliedCode : undefined,
         });
         created.push({
           orderId,
@@ -353,6 +406,7 @@ export default function Checkout() {
                     onClick={() => {
                       setAppliedCode("");
                       setCouponInput("");
+                      setCouponCheck(null);
                     }}
                     className="clay-sm flex size-7 items-center justify-center text-muted-foreground hover:text-foreground"
                     aria-label="Remove coupon"
@@ -370,13 +424,19 @@ export default function Checkout() {
                     if (e.key === "Enter") {
                       e.preventDefault();
                       setAppliedCode(couponInput.trim());
+                      void runCouponCheck(couponInput);
                     }
                   }}
                   placeholder="Enter code"
                   className="clay-inset min-w-0 flex-1 rounded-xl px-3.5 py-2.5 text-sm font-semibold uppercase tracking-wide outline-none focus:ring-2 focus:ring-primary/40"
                 />
                 <button
-                  onClick={() => setAppliedCode(couponInput.trim())}
+                  onClick={() => {
+                    const code = couponInput.trim();
+                    setCouponCheck(null);
+                    setAppliedCode(code);
+                    void runCouponCheck(code);
+                  }}
                   disabled={couponInput.trim() === ""}
                   className="tap shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-50"
                 >

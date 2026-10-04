@@ -3,10 +3,15 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { vly } from "../lib/vly-integrations";
 
 type Turn = { role: "user" | "model"; text: string };
+
+/** Longest single message we will forward to the model. */
+const MAX_MESSAGE_CHARS = 2000;
+/** Cap on the whole conversation, so one call cannot ship an unbounded body. */
+const MAX_HISTORY_CHARS = 8000;
 
 /**
  * Eden's AI sales assistant.
@@ -27,6 +32,9 @@ export const assistantReply = action({
     ),
   },
   handler: async (ctx, { history }) => {
+    // Charged against the caller's own quota before any paid API is touched.
+    await ctx.runMutation(internal.assistantQuota.consumeAssistantQuota, {});
+
     const catalog = await ctx.runQuery(api.catalog.listPublic, {});
     const settings = await ctx.runQuery(api.settings.get, {});
 
@@ -48,9 +56,21 @@ export const assistantReply = action({
       .filter(Boolean)
       .join("\n\n");
 
+    let spent = 0;
     const safeHistory: Turn[] = history
       .filter((t) => typeof t.text === "string" && t.text.trim().length > 0)
-      .slice(-12);
+      // Bound both the turn count and the payload: without this a caller could
+      // push megabytes of text through a metered endpoint in a single request.
+      .slice(-12)
+      .map((t) => ({ role: t.role, text: t.text.slice(0, MAX_MESSAGE_CHARS) }))
+      .filter((t) => {
+        const room = MAX_HISTORY_CHARS - spent;
+        if (room <= 0) return false;
+        const kept = t.text.slice(0, room);
+        spent += kept.length;
+        t.text = kept;
+        return true;
+      });
     const lastUser = [...safeHistory].reverse().find((t) => t.role === "user");
 
     const geminiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;

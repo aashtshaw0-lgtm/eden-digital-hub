@@ -251,9 +251,11 @@ function ManagerChat({ onBack }: { onBack: () => void }) {
         messages.map((m, i) => (
           <MessageBubble
             key={m._id}
-            side={m.senderRole === "manager" ? "studio" : "client"}
+            // Viewer-relative: my messages right, the studio's left. Works even
+            // when the studio owner is the one reading their own thread.
+            side={m.senderId === user?._id ? "mine" : "theirs"}
             text={m.content}
-            senderName={m.senderRole === "manager" ? "Eden studio" : undefined}
+            senderName={m.senderId === user?._id ? undefined : "Eden studio"}
             createdAt={m.createdAt}
             index={i}
           />
@@ -304,10 +306,9 @@ function Bubble({
   text: string;
   index?: number;
 }) {
-  // Assistant replies read as the studio's voice, so they use the same
-  // left-hand bubble as a manager's reply.
+  // The assistant is never "me", so its replies always sit on the left.
   return (
-    <MessageBubble side={fromAi ? "studio" : "client"} text={text} index={index} />
+    <MessageBubble side={fromAi ? "theirs" : "mine"} text={text} index={index} />
   );
 }
 

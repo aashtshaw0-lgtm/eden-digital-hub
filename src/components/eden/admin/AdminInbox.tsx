@@ -1,5 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { MessageBubble } from "@/components/eden/MessageBubble";
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
 import { Check, CheckCheck } from "lucide-react";
@@ -8,6 +9,7 @@ import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
 
 export function AdminInbox() {
+  const { user } = useAuth();
   const sessions = useQuery(api.chat.listSessions);
   const [pickedId, setPickedId] = useState<Id<"chatSessions"> | null>(null);
   const sendMessage = useMutation(api.chat.sendMessage);
@@ -123,11 +125,10 @@ export function AdminInbox() {
               {messages?.map((m, i) => (
                 <MessageBubble
                   key={m._id}
-                  // Mirror image of the client's thread: the manager's own
-                  // replies sit on the right, the client's on the left.
-                  side={m.senderRole === "manager" ? "studio" : "client"}
+                  // Viewer-relative: my replies right, the client's left.
+                  side={m.senderId === user?._id ? "mine" : "theirs"}
                   text={m.content}
-                  senderName={m.senderRole === "manager" ? "Eden studio" : undefined}
+                  senderName={m.senderId === user?._id ? undefined : m.senderName}
                   createdAt={m.createdAt}
                   index={i}
                 />
