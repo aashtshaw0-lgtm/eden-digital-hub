@@ -15,13 +15,35 @@ import { Link } from "react-router";
  * profit split with them never leaves the admin console.
  */
 export default function Products() {
-  useSeo({
-    title: `Handmade | Eden - Digital Design & Management`,
-    description:
-      "Small-batch pieces made by hand in the studio and with the people we collaborate with.",
-  });
   const products = useQuery(api.products.listLive);
   const collaborators = useQuery(api.products.listPublicCollaborators);
+
+  useSeo({
+    title: `Handmade Pieces | Eden - Digital Design & Management`,
+    description:
+      "Small-batch pieces made by hand in the studio and with the people we collaborate with. Every piece finished by a pair of hands, not a production line.",
+    canonical: "/products",
+    jsonLd: products === undefined || collaborators === undefined ? null : {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "itemListElement": products.map((p, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        item: {
+          "@type": "Product",
+          "name": p.name,
+          "description": p.description ?? `Handmade ${p.name} by Eden`,
+          "brand": { "@type": "Organization", "name": p.madeWith?.name ?? "Eden" },
+          "offers": {
+            "@type": "Offer",
+            "priceCurrency": "INR",
+            "price": p.price,
+            "availability": "https://schema.org/InStock"
+          }
+        }
+      }))
+    },
+  });
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">

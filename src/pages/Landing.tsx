@@ -1,6 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { inr } from "@/lib/format";
-import { useSeo } from "@/lib/seo";
+import { useSeo, getOrganizationSchema, getWebSiteSchema } from "@/lib/seo";
 import { useSettings } from "@/context/SettingsProvider";
 import { serviceIcon } from "@/components/eden/serviceIcons";
 import { Portfolio3D } from "@/components/eden/Portfolio3D";
@@ -20,6 +20,24 @@ export default function Landing() {
     title: "Eden — Digital Design & Management Studio",
     description:
       "Logos, posters, commercial designs, thumbnails and event banners — plus event planning and social media management. Handcrafted work, three transparent tiers, checkout in minutes.",
+    canonical: "/",
+    ogImage: "https://eden.design/og-image.jpg",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@graph": [
+        getOrganizationSchema(),
+        getWebSiteSchema(),
+        {
+          "@type": "WebApplication",
+          "name": "Eden Studio",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web",
+          "description": "Digital design & management studio with AI assistant and live manager chat.",
+          "url": "https://eden.design",
+          "screenshot": "https://eden.design/screenshot.jpg"
+        }
+      ]
+    },
   });
 
   const services = useQuery(api.catalog.listPublic);

@@ -10,7 +10,12 @@ import { Megaphone, Sparkles } from "lucide-react";
 import { Link } from "react-router";
 
 export default function Credits() {
-  useSeo({ title: `Credits | Eden - Digital Design & Management` });
+  useSeo({
+    title: `Credits — Supporters & Partners | Eden - Digital Design & Management`,
+    description:
+      "Meet the people who back Eden — premium and legendary supporters, sponsors, partners and press. The studio runs on the community that carries it.",
+    canonical: "/credits",
+  });
   const credits = useQuery(api.credits.listAll);
 
   return (

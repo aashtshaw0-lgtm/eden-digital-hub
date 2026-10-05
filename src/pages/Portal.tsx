@@ -17,7 +17,13 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function Portal() {
-  useSeo({ title: `Your Portal | Eden - Digital Design & Management` });
+  useSeo({
+    title: `My Orders & Profile | Eden - Digital Design & Management`,
+    description:
+      "Your Eden portal — view and manage your orders, submit payment proofs, and track the status of your briefs.",
+    canonical: "/portal",
+    noIndex: false,
+  });
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const orders = useQuery(api.orders.listMine);

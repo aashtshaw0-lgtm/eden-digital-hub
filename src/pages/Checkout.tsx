@@ -38,7 +38,13 @@ function tipTierName(tip: number): string | null {
 }
 
 export default function Checkout() {
-  useSeo({ title: `Checkout | Eden - Digital Design & Management` });
+  useSeo({
+    title: `Checkout | Eden - Digital Design & Management`,
+    description:
+      "Pay by UPI for your Eden order — logos, posters, thumbnails, banners, event planning or social media management. Three transparent tiers, fast checkout.",
+    canonical: "/checkout",
+    noIndex: false,
+  });
   const { items, total, removeItem, clear } = useCart();
   const { upiId, qrImageUrl } = useSettings();
   const createCartWithProof = useMutation(api.orders.createCartWithProof);

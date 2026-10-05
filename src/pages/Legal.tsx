@@ -19,15 +19,30 @@ function isTabKey(value: string | null): value is TabKey {
 }
 
 export default function Legal() {
-  useSeo({
-    title: "Privacy, terms & policies | Eden - Digital Design & Management",
-    description:
-      "How Eden handles your data, cookies, orders and refunds — written in plain language.",
-  });
-
   const [params, setParams] = useSearchParams();
   const tabParam = params.get("tab");
   const tab: TabKey = isTabKey(tabParam) ? tabParam : "privacy";
+
+  const tabTitles: Record<TabKey, string> = {
+    privacy: "Privacy Policy",
+    terms: "Terms & Conditions",
+    cookies: "Cookie Policy",
+    refunds: "Refunds & Cancellations"
+  };
+
+  useSeo({
+    title: tabTitles[tab],
+    description:
+      tab === "privacy"
+        ? "How Eden handles your personal data, what we collect, where it lives, and your rights."
+        : tab === "terms"
+          ? "Terms of service for Eden's design and management services — orders, payments, ownership and fair use."
+          : tab === "cookies"
+            ? "What cookies Eden uses, what we don't use, and how to manage your choices."
+            : "How Eden handles refunds and cancellations for one-off services and ongoing monthly plans.",
+    canonical: `/legal?tab=${tab}`,
+    noIndex: false,
+  });
 
   const selectTab = (key: TabKey) => {
     setParams({ tab: key }, { replace: true });

@@ -32,6 +32,7 @@ export default function Services() {
     title: `Services & Pricing | Eden - Digital Design & Management`,
     description:
       "Transparent three-tier pricing for logo design, posters, commercial design, thumbnails, event banners, event planning and social media management.",
+    canonical: "/services",
     jsonLd:
       services === undefined
         ? null
@@ -42,10 +43,14 @@ export default function Services() {
               "@type": "ListItem",
               position: i + 1,
               item: {
-                "@type": "Product",
+                "@type": "Service",
                 name: s.name,
-                description: s.tagline ?? `${s.name} by Eden`,
-                brand: { "@type": "Organization", name: "Eden" },
+                description: s.tagline ?? `${s.name} by Eden - Digital Design Studio`,
+                provider: {
+                  "@type": "Organization",
+                  "name": "Eden",
+                  "url": "https://eden.design"
+                },
                 offers: {
                   "@type": "AggregateOffer",
                   priceCurrency: "INR",
