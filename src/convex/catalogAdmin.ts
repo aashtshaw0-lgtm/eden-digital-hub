@@ -68,21 +68,23 @@ export const addService = mutation({
   },
 });
 
-/** Updates a tier's price, name or position — admin only. */
+/** Updates a tier's price, name, deliverables or position — admin only. */
 export const updateTier = mutation({
   args: {
     tierId: v.id("serviceTiers"),
     basePrice: v.optional(v.number()),
     name: v.optional(v.string()),
+    deliverables: v.optional(v.array(v.string())),
     sortOrder: v.optional(v.number()),
   },
-  handler: async (ctx, { tierId, basePrice, name, sortOrder }) => {
+  handler: async (ctx, { tierId, basePrice, name, deliverables, sortOrder }) => {
     await requireAdmin(ctx);
     const tier = await ctx.db.get(tierId);
     if (!tier) throw new Error("Tier not found.");
     const patch: {
       basePrice?: number;
       name?: string;
+      deliverables?: string[];
       sortOrder?: number;
     } = {};
     if (basePrice !== undefined) {
@@ -90,6 +92,7 @@ export const updateTier = mutation({
       patch.basePrice = Math.round(basePrice);
     }
     if (name !== undefined && name.trim()) patch.name = name.trim();
+    if (deliverables !== undefined) patch.deliverables = deliverables;
     if (sortOrder !== undefined) patch.sortOrder = sortOrder;
     await ctx.db.patch(tierId, patch);
     return null;

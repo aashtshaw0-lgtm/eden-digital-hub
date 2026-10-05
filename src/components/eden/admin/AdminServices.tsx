@@ -1,7 +1,7 @@
 import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { Loader2, Plus, Save, Trash2, Check } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -38,6 +38,26 @@ export function AdminServices() {
       toast.success("Price updated");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not update price");
+    }
+  };
+
+  const saveDeliverables = async (
+    tierId: (typeof services)[number]["tiers"][number]["_id"],
+    value: string,
+  ) => {
+    const items = value
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (items.length === 0) {
+      toast.error("Add at least one deliverable.");
+      return;
+    }
+    try {
+      await updateTier({ tierId, deliverables: items });
+      toast.success("Deliverables updated");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not update deliverables");
     }
   };
 
@@ -173,7 +193,9 @@ export function AdminServices() {
                     tierId={tier._id}
                     name={tier.name}
                     price={tier.basePrice}
-                    onSave={(v) => void savePrice(tier._id, v)}
+                    deliverables={tier.deliverables}
+                    onSavePrice={(v) => void savePrice(tier._id, v)}
+                    onSaveDeliverables={(v) => void saveDeliverables(tier._id, v)}
                   />
                 ))}
             </div>
@@ -188,39 +210,71 @@ function TierRow({
   tierId,
   name,
   price,
-  onSave,
+  deliverables,
+  onSavePrice,
+  onSaveDeliverables,
 }: {
   tierId: string;
   name: string;
   price: number;
-  onSave: (value: string) => void;
+  deliverables?: string[];
+  onSavePrice: (value: string) => void;
+  onSaveDeliverables: (value: string) => void;
 }) {
-  const [value, setValue] = useState(String(price));
-  const dirty = Number(value) !== price;
+  const [priceValue, setPriceValue] = useState(String(price));
+  const [deliverablesValue, setDeliverablesValue] = useState(
+    deliverables?.join("\n") ?? "",
+  );
+  const priceDirty = Number(priceValue) !== price;
+  const deliverablesDirty = deliverablesValue !== (deliverables?.join("\n") ?? "");
 
   return (
-    <div className="clay-inset flex flex-wrap items-center gap-3 rounded-xl px-3.5 py-2.5">
-      <span className="min-w-[90px] flex-1 text-sm font-medium">{name}</span>
-      <div className="clay-inset flex items-center gap-2 rounded-lg px-3 py-1.5">
+    <div className="clay-inset rounded-xl p-3.5">
+      <div className="flex items-center gap-2 pb-2">
+        <span className="text-sm font-semibold">{name}</span>
+        <span className="text-xs text-muted-foreground">— edit price and deliverables</span>
+      </div>
+
+      {/* Price editor */}
+      <div className="clay-inset flex items-center gap-2 rounded-lg px-3 py-2 mb-3">
         <span className="text-sm text-muted-foreground">₹</span>
         <input
           type="number"
           min={0}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={() => dirty && onSave(value)}
-          className="w-24 bg-transparent text-right text-sm font-medium tabular-nums outline-none"
+          value={priceValue}
+          onChange={(e) => setPriceValue(e.target.value)}
+          onBlur={() => priceDirty && onSavePrice(priceValue)}
+          className="w-28 bg-transparent text-right text-sm font-medium tabular-nums outline-none"
         />
+        <button
+          onClick={() => onSavePrice(priceValue)}
+          disabled={!priceDirty}
+          className="clay-sm inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-primary transition hover:brightness-110 disabled:opacity-40"
+        >
+          <Save className="size-3" />
+          Save
+        </button>
       </div>
-      <button
-        onClick={() => onSave(value)}
-        disabled={!dirty}
-        className="clay-sm inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:brightness-110 disabled:opacity-40"
-      >
-        <Save className="size-3.5" />
-        Save
-      </button>
-      <span className="sr-only">{tierId}</span>
+
+      {/* Deliverables editor */}
+      <div className="space-y-1.5">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Deliverables</p>
+        <textarea
+          value={deliverablesValue}
+          onChange={(e) => setDeliverablesValue(e.target.value)}
+          onBlur={() => deliverablesDirty && onSaveDeliverables(deliverablesValue)}
+          placeholder="One per line, e.g.:\n3 logo concepts\nPNG + JPG exports\n2 revision rounds"
+          className="clay-inset w-full min-h-[80px] resize-y rounded-lg px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/40"
+        />
+        <button
+          onClick={() => onSaveDeliverables(deliverablesValue)}
+          disabled={!deliverablesDirty}
+          className="clay-sm inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-primary transition hover:brightness-110 disabled:opacity-40"
+        >
+          <Save className="size-3" />
+          Save deliverables
+        </button>
+      </div>
     </div>
   );
 }
