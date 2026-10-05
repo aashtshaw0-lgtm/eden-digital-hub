@@ -62,6 +62,7 @@ export const listAll = query({
         _id: credit._id,
         name: maskName(credit.name),
         greatness: credit.greatness,
+        helpText: credit.helpText,
         tier: credit.tier ?? tierFor(credit.amount ?? 0),
         influence: influenceFor(credit.amount ?? 0),
         kind: (credit.kind ?? "tip") as "tip" | "marketing",
@@ -102,6 +103,8 @@ export const add = mutation({
   args: {
     name: v.string(),
     greatness: v.optional(v.string()),
+    /** Custom help text for marketing credits describing what they did. */
+    helpText: v.optional(v.string()),
     amount: v.optional(v.number()),
     kind: v.optional(v.union(v.literal("tip"), v.literal("marketing"))),
     /** Tier to show for a marketing credit, which has no amount behind it. */
@@ -121,6 +124,7 @@ export const add = mutation({
         greatness: greatness?.trim() || undefined,
         tier: tier ?? "standard",
         kind: "marketing",
+        helpText: undefined,
         createdAt: Date.now(),
       });
     }
@@ -143,6 +147,8 @@ export const update = mutation({
     creditId: v.id("credits"),
     name: v.optional(v.string()),
     greatness: v.optional(v.string()),
+    /** Custom help text for marketing credits describing what they did. */
+    helpText: v.optional(v.string()),
     amount: v.optional(v.number()),
     kind: v.optional(v.union(v.literal("tip"), v.literal("marketing"))),
     tier: v.optional(v.union(v.literal("standard"), v.literal("premium"), v.literal("legendary"))),
@@ -163,6 +169,7 @@ export const update = mutation({
       // Drop any stored amount so the entry can't leak a figure later.
       patch.amount = undefined;
       patch.tier = tier ?? credit.tier ?? "standard";
+      patch.helpText = undefined;
     } else {
       const contribution = amount === undefined ? credit.amount ?? 0 : Math.max(0, amount);
       patch.amount = contribution;

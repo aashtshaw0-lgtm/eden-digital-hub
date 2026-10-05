@@ -6,6 +6,7 @@ import { serviceIcon } from "@/components/eden/serviceIcons";
 import { Portfolio3D } from "@/components/eden/Portfolio3D";
 import { EdenWordmark } from "@/components/eden/EdenWordmark";
 import { Reveal } from "@/components/eden/Reveal";
+import { FloatingOrb } from "@/components/eden/FloatingOrb";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -38,19 +39,24 @@ export default function Landing() {
   const featured = useMemo(() => (services ?? []).slice(0, 4), [services]);
 
   return (
-    <main className="min-h-dvh">
+    <main className="relative min-h-dvh overflow-hidden">
+      {/* Ambient 3D orbs in background */}
+      <FloatingOrb size={400} speed={20} opacity={0.15} />
+      <FloatingOrb size={300} speed={25} opacity={0.12} className="right-0 top-20" />
+      <FloatingOrb size={250} speed={18} opacity={0.1} className="left-10 bottom-20" />
+
       {/* ── Wordmark ────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.04 }}
-        className="flex justify-center px-4 pt-28 sm:pt-36"
+        className="relative z-10 flex justify-center px-4 pt-28 sm:pt-36"
       >
         <EdenWordmark className="w-56 sm:w-72" />
       </motion.div>
 
       {/* ── Hero ─────────────────────────────────────────── */}
-      <section className="mx-auto flex w-full max-w-6xl flex-col items-center px-4 pb-16 pt-32 text-center sm:px-6 sm:pt-40">
+      <section className="relative z-10 mx-auto flex w-full max-w-6xl flex-col items-center px-4 pb-16 pt-32 text-center sm:px-6 sm:pt-40">
         <motion.span
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -67,22 +73,22 @@ export default function Landing() {
           className="font-display mt-6 max-w-3xl text-balance text-4xl font-semibold leading-[1.08] tracking-tight sm:text-6xl"
         >
           {heroLead}{" "}
-          <span className="relative inline-block text-emerald-700 dark:text-emerald-400">
+          <span className="relative inline-block">
             {heroMode === "rotating" ? (
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
                   key={wordIndex}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -14 }}
-                  transition={{ duration: 0.35 }}
-                  className="inline-block italic"
+                  initial={{ opacity: 0, y: 14, rotateX: -10 }}
+                  animate={{ opacity: 1, y: 0, rotateX: 0 }}
+                  exit={{ opacity: 0, y: -14, rotateX: 10 }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                  className="inline-block italic text-emerald-700 dark:text-emerald-400"
                 >
                   {words[wordIndex]}
                 </motion.span>
               </AnimatePresence>
             ) : (
-              <span className="inline-block italic">{heroAccent}</span>
+              <span className="inline-block italic text-emerald-700 dark:text-emerald-400">{heroAccent}</span>
             )}
           </span>
         </motion.h1>
@@ -106,19 +112,19 @@ export default function Landing() {
         >
           <Link
             to="/services"
-            className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-md transition hover:brightness-110"
+            className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-md transition hover:brightness-110 hover:shadow-lg hover:shadow-primary/20"
           >
             Explore services
           </Link>
           <a
             href="#portfolio"
-            className="clay-sm rounded-full px-6 py-3 text-sm font-semibold transition hover:text-primary"
+            className="clay-sm rounded-full px-6 py-3 text-sm font-semibold transition hover:text-primary hover:shadow-md"
           >
             See our work
           </a>
           <Link
             to="/products"
-            className="clay-sm rounded-full px-6 py-3 text-sm font-semibold transition hover:text-primary"
+            className="clay-sm rounded-full px-6 py-3 text-sm font-semibold transition hover:text-primary hover:shadow-md"
           >
             See handmade pieces
           </Link>
@@ -131,15 +137,21 @@ export default function Landing() {
           className="mt-10 flex flex-wrap justify-center gap-2.5"
         >
           {["7 services", "3 transparent tiers", "UPI checkout", "Live manager chat", "Handmade shelf"].map((chip) => (
-            <span key={chip} className="clay-sm rounded-full px-3.5 py-1.5 text-xs text-muted-foreground">
+            <motion.span
+              key={chip}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.5 + Math.random() * 0.2 }}
+              className="clay-sm rounded-full px-3.5 py-1.5 text-xs text-muted-foreground"
+            >
               {chip}
-            </span>
+            </motion.span>
           ))}
         </motion.div>
       </section>
 
       {/* ── Portfolio masonry ────────────────────────────── */}
-      <section id="portfolio" className="mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
+      <section id="portfolio" className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
         <div className="mb-8 flex items-end justify-between gap-4">
           <Reveal>
             <h2 className="font-display text-2xl font-semibold sm:text-3xl">Selected work</h2>
@@ -163,28 +175,33 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── Services teaser ──────────────────────────────── */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
+      {/* ── Services teaser with 3D cards ───────────────── */}
+      <section className="relative z-10 mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
         <div className="mb-8 text-center">
           <Reveal>
             <h2 className="font-display text-2xl font-semibold sm:text-3xl">Everything we make & manage</h2>
             <p className="mt-1 text-sm text-muted-foreground">Pick a service, pick a tier, brief us in one form.</p>
           </Reveal>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {featured.map((s, i) => {
             const Icon = serviceIcon(s.slug);
             const from = Math.min(...s.tiers.map((t) => t.basePrice));
             return (
               <motion.div
                 key={s._id}
-                initial={{ opacity: 0, y: 18 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
+                initial={{ opacity: 0, y: 24, rotateX: 8 }}
+                whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+                viewport={{ once: true, margin: "-50px" }}
+                transition={{ delay: i * 0.06, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                style={{ perspective: "800px" }}
               >
-                <Link to="/services" className="clay clay-press block h-full p-5">
-                  <span className="tint flex size-11 items-center justify-center rounded-2xl">
+                <Link
+                  to="/services"
+                  className="clay clay-press block h-full p-5 transition-shadow hover:shadow-xl"
+                  style={{ transformStyle: "preserve-3d" }}
+                >
+                  <span className="tint flex size-11 items-center justify-center rounded-2xl shadow-inner">
                     <Icon className="size-5" />
                   </span>
                   <h3 className="mt-4 font-semibold">{s.name}</h3>
@@ -196,12 +213,18 @@ export default function Landing() {
           })}
         </div>
         <div className="mt-8 text-center">
-          <Link
-            to="/services"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
           >
-            View all services <ArrowRight className="size-4" />
-          </Link>
+            <Link
+              to="/services"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+            >
+              View all services <ArrowRight className="size-4" />
+            </Link>
+          </motion.div>
         </div>
       </section>
     </main>

@@ -284,6 +284,12 @@ const schema = defineSchema(
       sourceOrderId: v.optional(v.id("orders")),
       /** True when the credit was created from a tip rather than by hand. */
       autoGranted: v.optional(v.boolean()),
+      /**
+       * Custom help text for marketing credits — lets admin describe what the
+       * credit is for (e.g. "Gave food supplies to the studio kitchen"). Shown
+       * on the public credits wall alongside greatness.
+       */
+      helpText: v.optional(v.string()),
       createdAt: v.number(),
     })
       .index("by_name", ["name"])

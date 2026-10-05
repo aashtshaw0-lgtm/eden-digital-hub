@@ -23,6 +23,7 @@ export function AdminCredits() {
   const [kind, setKind] = useState<CreditKind>("tip");
   const [name, setName] = useState("");
   const [greatness, setGreatness] = useState("");
+  const [helpText, setHelpText] = useState("");
   const [amount, setAmount] = useState("0");
   const [marketingTier, setMarketingTier] = useState<Tier>("premium");
   const [saving, setSaving] = useState(false);
@@ -44,6 +45,7 @@ export function AdminCredits() {
       await addCredit({
         name,
         greatness: greatness || undefined,
+        helpText: kind === "marketing" ? helpText || undefined : undefined,
         // Marketing credits carry no amount, so none is sent.
         amount: kind === "tip" ? numericAmount : undefined,
         kind,
@@ -52,6 +54,7 @@ export function AdminCredits() {
       toast.success(`Added ${name.trim()} to the ledger`);
       setName("");
       setGreatness("");
+      setHelpText("");
       setAmount("0");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not add credit");
@@ -62,13 +65,14 @@ export function AdminCredits() {
 
   const saveEdit = async (
     creditId: Id<"credits">,
-    next: { name: string; greatness: string; amount: number; kind: CreditKind; tier?: Tier },
+    next: { name: string; greatness: string; amount: number; kind: CreditKind; tier?: Tier; helpText?: string },
   ) => {
     try {
       await updateCredit({
         creditId,
         name: next.name,
         greatness: next.greatness,
+        helpText: next.kind === "marketing" ? next.helpText : undefined,
         amount: next.kind === "tip" ? next.amount : undefined,
         kind: next.kind,
         tier: next.kind === "marketing" ? (next.tier ?? "standard") : undefined,
@@ -150,6 +154,24 @@ export function AdminCredits() {
             />
           </Field>
         </div>
+
+        {/* Custom help text for marketing credits */}
+        {kind === "marketing" && (
+          <div className="sm:col-span-2">
+            <Field label="What did they do? (optional)">
+              <textarea
+                value={helpText}
+                onChange={(e) => setHelpText(e.target.value)}
+                placeholder="e.g. Gave food supplies to the studio kitchen, sponsored our event, wrote a feature about us..."
+                rows={2}
+                className="clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+              />
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                This describes what they contributed — shown publicly on the credits wall.
+              </p>
+            </Field>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-end gap-3">
           {kind === "tip" ? (
@@ -344,18 +366,20 @@ function EditRow({
   onSave,
   onCancel,
 }: {
-  credit: { name: string; greatness?: string; amount: number; kind: "tip" | "marketing"; tier: string };
+  credit: { name: string; greatness?: string; amount: number; kind: "tip" | "marketing"; tier: string; helpText?: string };
   onSave: (next: {
     name: string;
     greatness: string;
     amount: number;
     kind: CreditKind;
     tier?: Tier;
+    helpText?: string;
   }) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(credit.name);
   const [greatness, setGreatness] = useState(credit.greatness ?? "");
+  const [helpText, setHelpText] = useState(credit.helpText ?? "");
   const [amount, setAmount] = useState(String(credit.amount));
   const [kind, setKind] = useState<CreditKind>(credit.kind);
   const [tier, setTier] = useState<Tier>((credit.tier as Tier) ?? "standard");
@@ -373,6 +397,15 @@ function EditRow({
         placeholder="Greatness"
         className="clay-inset w-56 rounded-xl px-3 py-2 text-sm outline-none"
       />
+
+      {kind === "marketing" && (
+        <input
+          value={helpText}
+          onChange={(e) => setHelpText(e.target.value)}
+          placeholder="What did they do?"
+          className="clay-inset w-56 rounded-xl px-3 py-2 text-sm outline-none"
+        />
+      )}
 
       <select
         value={kind}
@@ -407,7 +440,7 @@ function EditRow({
 
       <button
         onClick={() =>
-          onSave({ name, greatness, amount: Math.max(0, Number(amount) || 0), kind, tier })
+          onSave({ name, greatness, amount: Math.max(0, Number(amount) || 0), kind, tier, helpText: kind === "marketing" ? helpText : undefined })
         }
         className="inline-flex items-center gap-1 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground"
       >
