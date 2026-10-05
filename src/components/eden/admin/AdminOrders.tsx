@@ -1,5 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { formatDate, inr, labelize } from "@/lib/format";
+import { CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -501,6 +502,16 @@ export function AdminOrders() {
 
             {selected.proof && <DecisionPanel order={selected} />}
 
+            {/* Colour swatches — show the actual colour, not just the hex code */}
+            {selected.requirements && (
+              <div className="mt-5 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Colours
+                </p>
+                <ColourSwatches requirements={selected.requirements as Record<string, unknown>} />
+              </div>
+            )}
+
             <dl className="mt-5 space-y-3">
               {Object.entries(
                 selected.requirements as Record<string, unknown>,
@@ -522,6 +533,9 @@ export function AdminOrders() {
                       </dd>
                     </div>
                   );
+                }
+                if (key === "brandPrimary" || key === "brandSecondary" || key === "colour" || key === "color") {
+                  return null;
                 }
                 const display =
                   typeof value === "object" && value !== null
@@ -1101,5 +1115,47 @@ function FileLink({ storageId, name }: { storageId: Id<"_storage">; name: string
     >
       {url ? name : <Loader2 className="size-3 animate-spin" />} ↗
     </a>
+  );
+}
+
+/**
+ * Renders colour swatches for design orders.
+ *
+ * Shows the actual colour as a visual swatch alongside the hex code, so the
+ * studio can see at a glance what the buyer picked — not just a hex string.
+ * Handles both `brandPrimary`/`brandSecondary` (from the design intake form)
+ * and any standalone `colour`/`color` fields.
+ */
+function ColourSwatches({ requirements }: { requirements: Record<string, unknown> }) {
+  const colours: { label: string; hex: string }[] = [];
+
+  const addColour = (label: string, key: string, value: unknown) => {
+    if (typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)) {
+      colours.push({ label, hex: value });
+    }
+  };
+
+  addColour("Primary", "brandPrimary", requirements.brandPrimary);
+  addColour("Secondary", "brandSecondary", requirements.brandSecondary);
+  addColour("Colour", "colour", requirements.colour);
+  addColour("Color", "color", requirements.color);
+
+  if (colours.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-3">
+      {colours.map(({ label, hex }) => (
+        <div key={label} className="flex items-center gap-2">
+          <span
+            className="tint shrink-0 rounded-lg border border-border/60"
+            style={{ backgroundColor: hex, aspectRatio: "1", width: 36 }}
+            title={hex}
+          />
+          <span className="text-sm font-mono tabular-nums">
+            {label}: {hex}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
