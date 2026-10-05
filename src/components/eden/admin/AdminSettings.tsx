@@ -2,12 +2,64 @@ import { api } from "@/convex/_generated/api";
 import { useSettings } from "@/context/SettingsProvider";
 import { cn } from "@/lib/utils";
 import { useMutation } from "convex/react";
-import { CloudUpload, Loader2, Save } from "lucide-react";
+import { CloudUpload, Loader2, Palette, Save } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 const inputCls =
   "clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring/40";
+
+// Preset colour combinations for quick switching
+const COLOR_THEMES = [
+  {
+    name: "Eden Original",
+    primary: "#2f6b4f",
+    background: "#f6f2ea",
+    description: "Warm paper & botanical ink-green",
+  },
+  {
+    name: "Warm Sunset",
+    primary: "#c75d3c",
+    background: "#fdf6f0",
+    description: "Terracotta clay on cream",
+  },
+  {
+    name: "Ocean Calm",
+    primary: "#3a7d8c",
+    background: "#f0f5f7",
+    description: "Seafoam teal on soft blue-white",
+  },
+  {
+    name: "Midnight Forest",
+    primary: "#1a3a2f",
+    background: "#f5f3f0",
+    description: "Deep forest on warm white",
+  },
+  {
+    name: "Royal Plum",
+    primary: "#6b4f7a",
+    background: "#f8f6fa",
+    description: "Rich plum on lavender white",
+  },
+  {
+    name: "Golden Hour",
+    primary: "#b8862d",
+    background: "#fdf8ed",
+    description: "Warm gold on sunlit cream",
+  },
+  {
+    name: "Charcoal & Clay",
+    primary: "#8b7355",
+    background: "#f2efe9",
+    description: "Earthy taupe on stone",
+  },
+  {
+    name: "Sage & Stone",
+    primary: "#7a9b7e",
+    background: "#f4f6f3",
+    description: "Soft sage on pale green-white",
+  },
+];
 
 export function AdminSettings() {
   const settings = useSettings();
@@ -39,6 +91,7 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
 
   const [primaryColor, setPrimaryColor] = useState(settings.primaryColor);
   const [backgroundColor, setBackgroundColor] = useState(settings.backgroundColor);
+  const [activeTheme, setActiveTheme] = useState<string | null>(null);
   const [upiId, setUpiId] = useState(settings.upiId);
   const [instagram, setInstagram] = useState(settings.socialLinks.instagram);
   const [twitter, setTwitter] = useState(settings.socialLinks.twitter);
@@ -103,7 +156,78 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <section className="clay space-y-4 p-6">
-        <h3 className="font-display text-lg font-semibold">Brand</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-lg font-semibold">Brand</h3>
+          <button
+            onClick={() => {
+              setPrimaryColor(settings.primaryColor);
+              setBackgroundColor(settings.backgroundColor);
+              setActiveTheme(null);
+            }}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Reset to current
+          </button>
+        </div>
+
+        {/* Colour theme presets */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Palette className="size-3.5 text-muted-foreground" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Quick colour themes
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {COLOR_THEMES.map((theme) => {
+              const isActive = theme.primary === primaryColor && theme.background === backgroundColor;
+              return (
+                <button
+                  key={theme.name}
+                  onClick={() => {
+                    setPrimaryColor(theme.primary);
+                    setBackgroundColor(theme.background);
+                    setActiveTheme(theme.name);
+                  }}
+                  className={cn(
+                    "group relative flex flex-col items-center gap-1.5 rounded-xl border p-3 transition",
+                    isActive
+                      ? "border-primary/50 bg-primary/5"
+                      : "border-border/60 bg-card hover:border-primary/30 hover:bg-secondary/50",
+                  )}
+                  title={`${theme.name}: ${theme.description}`}
+                >
+                  {/* Preview */}
+                  <div className="flex h-10 w-full flex-col rounded-lg overflow-hidden">
+                    <div
+                      className="h-1/2"
+                      style={{ backgroundColor: theme.primary }}
+                    />
+                    <div
+                      className="h-1/2"
+                      style={{ backgroundColor: theme.background }}
+                    />
+                  </div>
+                  <span className={cn(
+                    "text-[10px] font-medium",
+                    isActive ? "text-primary" : "text-muted-foreground",
+                  )}>
+                    {theme.name}
+                  </span>
+                  {isActive && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow">
+                      ✓
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Click a theme to preview. Colours update instantly but won't save until you click "Save settings".
+          </p>
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium">Primary color</span>
@@ -111,10 +235,13 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
               <input
                 type="color"
                 value={primaryColor}
-                onChange={(e) => setPrimaryColor(e.target.value)}
+                onChange={(e) => {
+                  setPrimaryColor(e.target.value);
+                  setActiveTheme(null);
+                }}
                 className="h-11 w-14 cursor-pointer rounded-xl border border-border bg-transparent p-1"
               />
-              <span className="text-xs text-muted-foreground">{primaryColor}</span>
+              <span className="text-xs text-muted-foreground font-mono">{primaryColor}</span>
             </div>
           </label>
           <label className="block">
@@ -123,10 +250,13 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
               <input
                 type="color"
                 value={backgroundColor}
-                onChange={(e) => setBackgroundColor(e.target.value)}
+                onChange={(e) => {
+                  setBackgroundColor(e.target.value);
+                  setActiveTheme(null);
+                }}
                 className="h-11 w-14 cursor-pointer rounded-xl border border-border bg-transparent p-1"
               />
-              <span className="text-xs text-muted-foreground">{backgroundColor}</span>
+              <span className="text-xs text-muted-foreground font-mono">{backgroundColor}</span>
             </div>
           </label>
         </div>
