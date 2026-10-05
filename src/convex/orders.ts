@@ -1361,6 +1361,52 @@ async function imageUrlToBase64(
   return { base64: btoa(binary), mimeType: sniffImageMime(bytes) };
 }
 
+/**
+ * Master reset: clears all test data (orders, proofs, reviews, chat sessions,
+ * messages, payment proofs) so the studio can start fresh.
+ *
+ * Keeps the catalog, settings, credits, coupons, portfolio, products, users.
+ * Admin only.
+ */
+export const masterReset = mutation({
+  args: { confirm: v.literal("RESET_ALL") },
+  handler: async (ctx, { confirm }) => {
+    await requireAdmin(ctx);
+    if (confirm !== "RESET_ALL") throw new Error("Confirmation required.");
+
+    // Delete in dependency order so nothing leaves dangling refs.
+    // Collect IDs first, then delete.
+    const reviewIds = await ctx.db.query("paymentReviews").collect();
+    const proofIds = await ctx.db.query("paymentProofs").collect();
+    const messageIds = await ctx.db.query("messages").collect();
+    const sessionIds = await ctx.db.query("chatSessions").collect();
+    const orderIds = await ctx.db.query("orders").collect();
+
+    // Delete reviews
+    for (const r of reviewIds) {
+      await ctx.db.delete(r._id);
+    }
+    // Delete proofs
+    for (const p of proofIds) {
+      await ctx.db.delete(p._id);
+    }
+    // Delete messages
+    for (const m of messageIds) {
+      await ctx.db.delete(m._id);
+    }
+    // Delete sessions
+    for (const s of sessionIds) {
+      await ctx.db.delete(s._id);
+    }
+    // Delete orders
+    for (const o of orderIds) {
+      await ctx.db.delete(o._id);
+    }
+
+    return { ok: true, cleared: "orders, proofs, reviews, chat" };
+  },
+});
+
 /** Financial widget: completed orders within a window → volume, revenue, 20% cut. */
 export const stats = query({
   args: { from: v.number(), to: v.number() },

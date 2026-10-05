@@ -1,6 +1,5 @@
 import { api } from "@/convex/_generated/api";
 import { formatDate, inr, labelize } from "@/lib/format";
-import { CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -82,6 +81,9 @@ export function AdminOrders() {
   const orders = useQuery(api.orders.listAll);
   const readiness = useQuery(api.orders.paymentReadiness);
   const updateStatus = useMutation(api.orders.updateStatus);
+  const resetAll = useMutation(api.orders.masterReset);
+  const [resetting, setResetting] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const reviewProof = useMutation(api.orders.reviewProof);
   const confirmPayment = useMutation(api.orders.confirmPayment);
   const generateProofUrl = useMutation(api.orders.generateProofUrl);
@@ -224,6 +226,60 @@ export function AdminOrders() {
         className="hidden"
         onChange={(e) => void onProofFile(e.target.files?.[0])}
       />
+
+      {/* Master reset button — clears all test orders, proofs, reviews, chat */}
+      {orders.length > 0 && (
+        <div className="mb-5 flex items-center gap-3">
+          <button
+            onClick={() => setShowResetConfirm(true)}
+            className="clay-sm inline-flex items-center gap-1.5 rounded-full bg-rose-600/10 px-3.5 py-2 text-xs font-semibold text-rose-700 ring-1 ring-rose-500/30 hover:bg-rose-600/20"
+          >
+            <Undo2 className="size-3.5" />
+            Reset all test data ({orders.length} orders)
+          </button>
+          {showResetConfirm && (
+            <div className="clay rounded-2xl bg-rose-600/10 p-4 ring-1 ring-rose-500/30">
+              <p className="text-sm font-semibold text-rose-900 dark:text-rose-200">
+                Are you sure? This will permanently delete:
+              </p>
+              <ul className="mt-2 space-y-1 text-xs text-rose-800 dark:text-rose-200">
+                <li>{orders.length} orders</li>
+                <li>All payment proofs & reviews</li>
+                <li>All chat sessions & messages</li>
+              </ul>
+              <p className="mt-2 text-xs text-rose-700 dark:text-rose-300">
+                This does NOT delete: services, portfolio, products, credits, coupons, settings.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => {
+                    setResetting(true);
+                    void resetAll({ confirm: "RESET_ALL" }).then(() => {
+                      setResetting(false);
+                      setShowResetConfirm(false);
+                      toast.success("Test data cleared — fresh start!");
+                    }).catch((e) => {
+                      toast.error(e instanceof Error ? e.message : "Reset failed");
+                      setResetting(false);
+                    });
+                  }}
+                  disabled={resetting}
+                  className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+                >
+                  {resetting ? <Loader2 className="size-3 animate-spin" /> : null}
+                  Yes, reset everything
+                </button>
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="clay-sm rounded-full px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Payment readiness — clients cannot pay an account that does not exist */}
       <AnimatePresence>
