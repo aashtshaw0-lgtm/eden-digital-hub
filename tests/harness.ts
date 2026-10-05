@@ -1,6 +1,12 @@
 import { convexTest } from "convex-test";
 import { vi } from "vitest";
+import type { Test } from "convex-test";
 import schema from "../src/convex/schema";
+
+// Import the pre-built mock (a different module path, so not intercepted by
+// the vi.mock below). Used to spread real authTables into the mock factory.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+import * as mockAuth from "__mocks__/@convex-dev/auth/server";
 
 /**
  * The Convex modules under test.
@@ -9,7 +15,70 @@ import schema from "../src/convex/schema";
  * one it drops its own `import.meta.glob`, which only looks for a top-level
  * `convex/` directory. This app keeps its functions in `src/convex`, so the map
  * is built here.
+ *
+ * Bun's plain `bun test` runtime does not always expose `import.meta.glob`,
+ * so this polyfills it with a filesystem-backed shim that returns the same
+ * `{ [pattern]: factory }` shape convex-test expects.
  */
+if (typeof import.meta.glob !== "function") {
+  (import.meta as Record<string, unknown>).glob = function (
+    pattern: string,
+  ): Record<string, () => Promise<unknown>> {
+    const fs = require("fs");
+    const path = require("path");
+    const url = require("url");
+    const cache = new Map<string, () => Promise<unknown>>();
+    // __dirname is not available in ESM; derive it from import.meta.url.
+    let dir: string;
+    if ("dirname" in import.meta && typeof import.meta.dirname === "string") {
+      dir = import.meta.dirname;
+    } else {
+      dir = path.dirname(url.fileURLToPath(import.meta.url));
+    }
+    // Strip the glob suffix to get the base directory. The pattern may look
+    // like "../src/convex/**/*.{ts,js}" — we need the directory portion only.
+    const globPattern = pattern.replace(/^\.\//, "");
+    // Remove a trailing glob segment like "/**/*.{ts,js}" or "/*.ts" to find
+    // the root directory that the pattern is anchored on.
+    const anchor = globPattern.replace(/[/\\][*][*].*$/, "").replace(/[/\\].*$/, "");
+    const baseDir = path.resolve(dir, anchor);
+
+    function collect(dir: string, out: string[]) {
+      let entries: ReturnType<typeof fs.readdirSync>;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          collect(full, out);
+        } else if (
+          entry.name.endsWith(".ts") ||
+          entry.name.endsWith(".js")
+        ) {
+          out.push(full);
+        }
+      }
+    }
+
+    const files: string[] = [];
+    collect(baseDir, files);
+
+    for (const file of files) {
+      const key = `file://${file}`;
+      if (cache.has(key)) continue;
+      cache.set(
+        key,
+        () => import(file as never),
+      );
+    }
+
+    return cache;
+  };
+}
+
 const modules = import.meta.glob("../src/convex/**/*.{ts,js}");
 
 /**
@@ -22,11 +91,18 @@ const modules = import.meta.glob("../src/convex/**/*.{ts,js}");
 const identity = { current: null as string | null };
 
 // Partial mock: only `getAuthUserId` is stubbed. The rest of the module (notably
-// `authTables`, which the schema spreads) must stay real.
-vi.mock("@convex-dev/auth/server", async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
+// `authTables`, which the schema spreads) must stay real so the Convex schema
+// can be constructed.
+//
+// The pre-built mock (imported above) contains the real authTables and stubs for
+// everything else. We spread it and override getAuthUserId with our controllable
+// identity so signIn() can swap users between tests.
+vi.mock("@convex-dev/auth/server", async () => {
   return {
-    ...actual,
+    ...mockAuth,
+    // Override the mock file's getAuthUserId so it reads from this harness's
+    // mutable identity (controlled by signIn below) instead of the mock file's
+    // own identity object.
     getAuthUserId: async () => identity.current,
   };
 });
