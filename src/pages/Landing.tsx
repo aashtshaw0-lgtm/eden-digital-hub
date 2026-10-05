@@ -4,6 +4,7 @@ import { useSeo, getOrganizationSchema, getWebSiteSchema } from "@/lib/seo";
 import { useSettings } from "@/context/SettingsProvider";
 import { serviceIcon } from "@/components/eden/serviceIcons";
 import { Portfolio3D } from "@/components/eden/Portfolio3D";
+import { ColorCombos } from "@/components/eden/ColorCombos";
 import { EdenWordmark } from "@/components/eden/EdenWordmark";
 import { Reveal } from "@/components/eden/Reveal";
 import { FloatingOrb } from "@/components/eden/FloatingOrb";
@@ -245,6 +246,9 @@ export default function Landing() {
           </motion.div>
         </div>
       </section>
+
+      {/* ── Colour combos showcase ─────────────────────────── */}
+      <ColorCombos />
     </main>
   );
 }
