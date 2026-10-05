@@ -93,12 +93,17 @@ function Carousel({
 
   React.useEffect(() => {
     if (!api) return
-    onSelect(api)
-    api.on("reInit", onSelect)
-    api.on("select", onSelect)
+    const onReInit = (api: CarouselApi) => {
+      onSelect(api)
+    }
+    const onSelectEvent = (api: CarouselApi) => {
+      onSelect(api)
+    }
+    api.on("reInit", onReInit)
+    api.on("select", onSelectEvent)
 
     return () => {
-      api?.off("select", onSelect)
+      api?.off("select", onSelectEvent)
     }
   }, [api, onSelect])
 

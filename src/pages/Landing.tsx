@@ -96,9 +96,7 @@ export default function Landing() {
           One studio for logos, posters, thumbnails, banners and full event or
           social execution — every piece drawn by hand, with three honest tiers
           on each service and a real person one click away.
-        </motion.p>
-
-        <motion.div
+        </motion.p>          <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.24 }}
@@ -117,10 +115,10 @@ export default function Landing() {
             See our work
           </a>
           <Link
-            to="/credits"
+            to="/products"
             className="clay-sm rounded-full px-6 py-3 text-sm font-semibold transition hover:text-primary"
           >
-            Meet our credits
+            See handmade pieces
           </Link>
         </motion.div>
 
@@ -130,7 +128,7 @@ export default function Landing() {
           transition={{ delay: 0.4 }}
           className="mt-10 flex flex-wrap justify-center gap-2.5"
         >
-          {["7 services", "3 transparent tiers", "UPI checkout", "Live manager chat"].map((chip) => (
+          {["7 services", "3 transparent tiers", "UPI checkout", "Live manager chat", "Handmade shelf"].map((chip) => (
             <span key={chip} className="clay-sm rounded-full px-3.5 py-1.5 text-xs text-muted-foreground">
               {chip}
             </span>

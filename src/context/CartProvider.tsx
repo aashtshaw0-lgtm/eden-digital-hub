@@ -61,9 +61,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const removeItem = useCallback((index: number) => {
     setItems((prev) => prev.filter((_, i) => i !== index));
+    // Keep the pulse honest: removing an item does not re-trigger "Added to cart".
+    setLastAddedAt(0);
   }, []);
 
-  const clear = useCallback(() => setItems([]), []);
+  const clear = useCallback(() => {
+    setItems([]);
+    setLastAddedAt(0);
+  }, []);
 
   const value = useMemo<CartContextValue>(
     () => ({

@@ -93,17 +93,17 @@ export function DynamicIsland() {
               ? "text-primary-foreground"
               : "text-foreground/70 hover:text-foreground",
           )}
-          title="Admin console"
+          title="Eden Console"
         >
           {location.pathname.startsWith("/admin") && (
             <motion.span
-              layoutId="eden-island-pill"
+              layoutId="eden-admin-pill"
               className="absolute inset-0 rounded-full bg-primary"
               transition={{ type: "spring", stiffness: 400, damping: 34 }}
             />
           )}
           <ShieldCheck className="relative z-10 size-4" />
-          <span className="relative z-10 hidden font-medium md:inline">Admin</span>
+          <span className="relative z-10 hidden font-medium md:inline">Console</span>
         </Link>
       )}
 

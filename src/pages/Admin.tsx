@@ -19,28 +19,30 @@ const TABS: { key: string; label: string; superOnly?: boolean }[] = [
   { key: "orders", label: "Orders" },
   { key: "credits", label: "Credits" },
   { key: "coupons", label: "Coupons" },
-  { key: "inbox", label: "Live Inbox" },
+  { key: "inbox", label: "Live chat" },
   { key: "portfolio", label: "Portfolio" },
   { key: "services", label: "Services" },
-  { key: "products", label: "Products & People" },
+  { key: "products", label: "Products & people" },
   { key: "website", label: "Website" },
-  { key: "calculator", label: "Profit Split" },
+  { key: "calculator", label: "Profit split" },
   { key: "roles", label: "Roles", superOnly: true },
 ];
 
 export default function Admin() {
-  useSeo({ title: `Eden Console | Eden - Digital Design & Management` });
+  useSeo({ title: "Eden Console | Eden - Digital Design & Management" });
   const { user } = useAuth();
   const role = useQuery(api.users.myRole);
   const [tab, setTab] = useState<string>("orders");
 
-  const visibleTabs = TABS.filter((t) => !t.superOnly || role === "super_owner");
+  const visibleTabs = TABS.filter(
+    (t) => !t.superOnly || role === "super_owner",
+  );
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
       <header className="mb-8">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Invisible CMS
+          Invisible back office
         </p>
         <h1 className="font-display mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
           Eden Console

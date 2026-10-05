@@ -6,10 +6,10 @@ import { useSearchParams } from "react-router";
 const LAST_UPDATED = "October 4, 2026";
 
 const TABS = [
-  { key: "privacy", label: "Privacy Policy", icon: ShieldCheck },
-  { key: "terms", label: "Terms & Conditions", icon: FileText },
-  { key: "cookies", label: "Cookie Policy", icon: Cookie },
-  { key: "refunds", label: "Refund & Cancellation", icon: Banknote },
+  { key: "privacy", label: "Privacy policy", icon: ShieldCheck },
+  { key: "terms", label: "Terms & conditions", icon: FileText },
+  { key: "cookies", label: "Cookie policy", icon: Cookie },
+  { key: "refunds", label: "Refunds & cancellations", icon: Banknote },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -20,7 +20,7 @@ function isTabKey(value: string | null): value is TabKey {
 
 export default function Legal() {
   useSeo({
-    title: "Privacy, Terms & Policies | Eden - Digital Design & Management",
+    title: "Privacy, terms & policies | Eden - Digital Design & Management",
     description:
       "How Eden handles your data, cookies, orders and refunds — written in plain language.",
   });
