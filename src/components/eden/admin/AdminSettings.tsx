@@ -9,55 +9,37 @@ import { toast } from "sonner";
 const inputCls =
   "clay-inset w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring/40";
 
-// Preset colour combinations for quick switching
-const COLOR_THEMES = [
+// The four colour combos shown on the landing page. Each one maps to a
+// primary + background pair stored in globalSettings, so picking a combo here
+// is what re-themes the whole site.
+const COLOR_COMBOS = [
   {
+    id: "eden-original",
     name: "Eden Original",
+    description: "Warm paper & botanical ink-green",
     primary: "#2f6b4f",
     background: "#f6f2ea",
-    description: "Warm paper & botanical ink-green",
   },
   {
-    name: "Warm Sunset",
-    primary: "#c75d3c",
-    background: "#fdf6f0",
-    description: "Terracotta clay on cream",
+    id: "plum-milk",
+    name: "Plum & Milk",
+    description: "Deep plum over warm cream",
+    primary: "#381932",
+    background: "#FFF3E6",
   },
   {
-    name: "Ocean Calm",
-    primary: "#3a7d8c",
-    background: "#f0f5f7",
-    description: "Seafoam teal on soft blue-white",
+    id: "night-imperial",
+    name: "Night & Imperial",
+    description: "Near-black with a red-hot accent",
+    primary: "#000F08",
+    background: "#FB3640",
   },
   {
-    name: "Midnight Forest",
-    primary: "#1a3a2f",
-    background: "#f5f3f0",
-    description: "Deep forest on warm white",
-  },
-  {
-    name: "Royal Plum",
-    primary: "#6b4f7a",
-    background: "#f8f6fa",
-    description: "Rich plum on lavender white",
-  },
-  {
-    name: "Golden Hour",
-    primary: "#b8862d",
-    background: "#fdf8ed",
-    description: "Warm gold on sunlit cream",
-  },
-  {
-    name: "Charcoal & Clay",
-    primary: "#8b7355",
-    background: "#f2efe9",
-    description: "Earthy taupe on stone",
-  },
-  {
-    name: "Sage & Stone",
-    primary: "#7a9b7e",
-    background: "#f4f6f3",
-    description: "Soft sage on pale green-white",
+    id: "ghost-persian",
+    name: "Ghost & Persian",
+    description: "Pearl white over rich indigo",
+    primary: "#F7F7FF",
+    background: "#27187E",
   },
 ];
 
@@ -164,55 +146,63 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
             }}
             className="text-xs text-muted-foreground hover:text-foreground"
           >
-            Reset to current
+            Reset to saved
           </button>
         </div>
 
-        {/* Colour theme presets */}
+        {/* Colour combination picker — 4 cards matching the landing showcase */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Palette className="size-3.5 text-muted-foreground" />
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Quick colour themes
+              Colour combination
             </span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {COLOR_THEMES.map((theme) => {
-              const isActive = theme.primary === primaryColor && theme.background === backgroundColor;
+          <div className="grid gap-3 sm:grid-cols-2">
+            {COLOR_COMBOS.map((combo) => {
+              const isActive =
+                combo.primary.toLowerCase() === primaryColor.toLowerCase() &&
+                combo.background.toLowerCase() === backgroundColor.toLowerCase();
               return (
                 <button
-                  key={theme.name}
+                  key={combo.id}
                   onClick={() => {
-                    setPrimaryColor(theme.primary);
-                    setBackgroundColor(theme.background);
+                    setPrimaryColor(combo.primary);
+                    setBackgroundColor(combo.background);
                   }}
                   className={cn(
-                    "group relative flex flex-col items-center gap-1.5 rounded-xl border p-3 transition",
+                    "group relative flex gap-3 overflow-hidden rounded-xl border p-3 transition",
                     isActive
-                      ? "border-primary/50 bg-primary/5"
-                      : "border-border/60 bg-card hover:border-primary/30 hover:bg-secondary/50",
+                      ? "border-primary/60 ring-2 ring-primary/40"
+                      : "border-border/60 bg-card hover:border-primary/30 hover:bg-secondary/40",
                   )}
-                  title={`${theme.name}: ${theme.description}`}
+                  title={`${combo.name}: ${combo.description}`}
                 >
-                  {/* Preview */}
-                  <div className="flex h-10 w-full flex-col rounded-lg overflow-hidden">
-                    <div
-                      className="h-1/2"
-                      style={{ backgroundColor: theme.primary }}
-                    />
-                    <div
-                      className="h-1/2"
-                      style={{ backgroundColor: theme.background }}
-                    />
+                  {/* Combo swatch: primary on top, background on bottom */}
+                  <div className="mt-1 flex h-14 w-14 shrink-0 flex-col rounded-lg shadow-inner sm:mt-0 sm:mx-0 sm:mt-0">
+                    <div style={{ backgroundColor: combo.primary }} className="h-1/2" />
+                    <div style={{ backgroundColor: combo.background }} className="h-1/2" />
                   </div>
-                  <span className={cn(
-                    "text-[10px] font-medium",
-                    isActive ? "text-primary" : "text-muted-foreground",
-                  )}>
-                    {theme.name}
-                  </span>
+                  <div className="min-w-0 flex flex-1 flex-col">
+                    <span className={cn(
+                      "text-sm font-semibold",
+                      isActive ? "text-primary" : "text-foreground",
+                    )}>
+                      {combo.name}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">{combo.description}</span>
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {combo.primary}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">+</span>
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {combo.background}
+                      </span>
+                    </div>
+                  </div>
                   {isActive && (
-                    <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow">
+                    <span className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow">
                       ✓
                     </span>
                   )}
@@ -221,7 +211,7 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
             })}
           </div>
           <p className="text-[10px] text-muted-foreground">
-            Click a theme to preview. Colours update instantly but won't save until you click "Save settings".
+            Pick a colour combination to preview it here and on the live site. The four combos match the cards on the home page.
           </p>
         </div>
 
@@ -252,7 +242,7 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
           </label>
         </div>
         <p className="text-xs text-muted-foreground">
-          Colors apply to the whole site instantly through CSS variables.
+          These two colors power the whole site through CSS variables. The colour-combination cards above set both at once.
         </p>
 
         <label className="block">
