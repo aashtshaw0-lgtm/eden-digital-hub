@@ -27,8 +27,6 @@ interface CreatedOrder {
   amount: number;
 }
 
-
-
 /** Tip presets shown as quick-pick chips, plus a custom amount box. */
 const TIP_PRESETS = [0, 100, 250, 500];
 

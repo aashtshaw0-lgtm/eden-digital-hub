@@ -969,7 +969,7 @@ function DecisionPanel({ order }: { order: Order }) {
             </button>
             <button
               onClick={() => void run("refund")}
-              disabled={busy !== null || !order.refundedAt}
+              disabled={busy !== null || Boolean(order.refundedAt)}
               className="clay-sm inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-50"
             >
               {busy === "refund" ? <Loader2 className="size-3.5 animate-spin" /> : <Undo2 className="size-3.5" />}

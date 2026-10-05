@@ -160,7 +160,6 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
       </section>
 
       <section className="clay space-y-4 p-6">
-        <section className="clay space-y-4 p-5">
         <div>
           <h3 className="font-display text-lg font-semibold">Home screen headline</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -237,9 +236,10 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
             {heroLead} {heroMode === "static" ? heroAccent : heroWords.split(",")[0]?.trim()}
           </span>
         </p>
-      </section>
 
-      <h3 className="font-display text-lg font-semibold">Payment QR</h3>
+        <div className="h-px bg-border/60" />
+
+        <h3 className="font-display text-lg font-semibold">Payment QR</h3>
         <div className="clay-inset mx-auto flex aspect-square w-48 items-center justify-center overflow-hidden rounded-2xl">
           {settings.qrImageUrl ? (
             <img src={settings.qrImageUrl} alt="Current QR" className="size-full object-contain p-2" />

@@ -13,6 +13,7 @@ const STATUS_STYLES: Record<string, string> = {
   pending: "bg-secondary text-secondary-foreground", // gray
   approved: "bg-sky-600/15 text-sky-700", // blue
   completed: "bg-emerald-600/15 text-emerald-700", // green
+  rejected: "bg-rose-600/15 text-rose-700", // red
 };
 
 export default function Portal() {

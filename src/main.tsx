@@ -26,6 +26,9 @@ const ChatWidget = lazy(() =>
 const CookieConsent = lazy(() =>
   import("./components/eden/CookieConsent").then((m) => ({ default: m.CookieConsent })),
 );
+const SiteFooter = lazy(() =>
+  import("./components/eden/SiteFooter").then((m) => ({ default: m.SiteFooter })),
+);
 
 // Lazy load route components for better code splitting
 const Landing = lazy(() => import("./pages/Landing.tsx"));
@@ -75,6 +78,17 @@ function GlobalChrome() {
         </Suspense>
       )}
     </>
+  );
+}
+
+/** Sits below the routed content on every page except the full-screen /auth flow. */
+function GlobalFooter() {
+  const location = useLocation();
+  if (location.pathname === "/auth") return null;
+  return (
+    <Suspense fallback={null}>
+      <SiteFooter />
+    </Suspense>
   );
 }
 
@@ -214,6 +228,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
+              <GlobalFooter />
             </BrowserRouter>
             <Toaster />
           </CartProvider>

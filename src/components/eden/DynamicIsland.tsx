@@ -25,16 +25,19 @@ function useCartPulse(lastAddedAt: number) {
   const [pulsing, setPulsing] = useState(false);
 
   useEffect(() => {
-    if (!lastAddedAt) return;
     // Both transitions are scheduled on timers rather than applied inline.
     // Setting state during the effect body would force an extra render pass on
     // every cart change; a timer is the same "external system" the reset
     // already relied on.
-    const on = setTimeout(() => setPulsing(true), 0);
-    const off = setTimeout(() => setPulsing(false), PULSE_MS);
+    //
+    // `lastAddedAt` is reset to 0 when the cart is emptied/trimmed, so a 0 must
+    // also switch the pulse *off* — otherwise removing the item mid-pulse
+    // leaves the "Added to cart" badge stuck on screen forever.
+    const on = setTimeout(() => setPulsing(Boolean(lastAddedAt)), 0);
+    const off = lastAddedAt ? setTimeout(() => setPulsing(false), PULSE_MS) : undefined;
     return () => {
       clearTimeout(on);
-      clearTimeout(off);
+      if (off) clearTimeout(off);
     };
   }, [lastAddedAt]);
 

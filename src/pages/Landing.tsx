@@ -96,7 +96,9 @@ export default function Landing() {
           One studio for logos, posters, thumbnails, banners and full event or
           social execution — every piece drawn by hand, with three honest tiers
           on each service and a real person one click away.
-        </motion.p>          <motion.div
+        </motion.p>
+
+        <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.24 }}

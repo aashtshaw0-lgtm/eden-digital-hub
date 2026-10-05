@@ -26,7 +26,7 @@ interface AuthProps {
 
 function resolveRedirectAfterAuth(
   returnTo: string | null,
-  fallback = "/dashboard",
+  fallback = "/portal",
 ) {
   if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
     return returnTo;
@@ -99,7 +99,6 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
       navigate(redirect);
     } catch (error) {
       console.error("Guest login error:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
       setError(`Failed to sign in as guest: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setIsLoading(false);
     }
@@ -107,8 +106,6 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
 
   return (
     <div className="min-h-screen flex flex-col">
-
-      
       {/* Auth Content */}
       <div className="flex-1 flex items-center justify-center">
         <div className="flex items-center justify-center h-full flex-col">

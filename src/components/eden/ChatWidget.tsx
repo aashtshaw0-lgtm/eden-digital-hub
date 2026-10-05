@@ -108,6 +108,7 @@ interface Msg {
 }
 
 function AiChat({ onBack }: { onBack: () => void }) {
+  const { isAuthenticated } = useAuth();
   const [messages, setMessages] = useState<Msg[]>([
     {
       role: "model",
@@ -126,6 +127,10 @@ function AiChat({ onBack }: { onBack: () => void }) {
   const send = async () => {
     const text = input.trim();
     if (!text || busy) return;
+    if (!isAuthenticated) {
+      toast.error("Sign in first so we can keep your chat history.");
+      return;
+    }
     const next = [...messages, { role: "user" as const, text }];
     setMessages(next);
     setInput("");
@@ -142,6 +147,10 @@ function AiChat({ onBack }: { onBack: () => void }) {
       setBusy(false);
     }
   };
+
+  if (!isAuthenticated) {
+    return <SignInPrompt onBack={onBack} scrollRef={scrollRef} />;
+  }
 
   return (
     <ChatShell title="Eden Assistant" subtitle="Instant · always on" onBack={onBack} scrollRef={scrollRef}>
@@ -167,8 +176,6 @@ function AiChat({ onBack }: { onBack: () => void }) {
 
 function ManagerChat({ onBack }: { onBack: () => void }) {
   const { isAuthenticated, user } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
   const session = useQuery(api.chat.mySession, isAuthenticated ? {} : "skip");
   const startSession = useMutation(api.chat.startSession);
   const sendMessage = useMutation(api.chat.sendMessage);
@@ -200,24 +207,7 @@ function ManagerChat({ onBack }: { onBack: () => void }) {
   }, [messages?.length]);
 
   if (!isAuthenticated) {
-    return (
-      <ChatShell title="Live Manager" subtitle="Live · human" onBack={onBack} scrollRef={scrollRef}>
-        <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-          <span className="tint flex size-12 items-center justify-center rounded-2xl">
-            <Bot className="size-6" />
-          </span>
-          <p className="text-sm text-muted-foreground">
-            Sign in so the manager knows who they're talking to — your chat history stays in your portal.
-          </p>
-          <button
-            onClick={() => navigate(`/auth?returnTo=${encodeURIComponent(location.pathname)}`)}
-            className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground shadow-sm"
-          >
-            Sign in to chat
-          </button>
-        </div>
-      </ChatShell>
-    );
+    return <SignInPrompt onBack={onBack} scrollRef={scrollRef} />;
   }
 
   const send = async () => {
@@ -262,6 +252,40 @@ function ManagerChat({ onBack }: { onBack: () => void }) {
         ))
       )}
       <ChatInput value={input} onChange={setInput} onSend={send} disabled={!session} />
+    </ChatShell>
+  );
+}
+
+/**
+ * Shown when a signed-out visitor opens either chat channel. The assistant and
+ * the live manager both key conversations (and rate limits) to a real account,
+ * so the honest move is to ask for a sign-in rather than let the send fail.
+ */
+function SignInPrompt({
+  onBack,
+  scrollRef,
+}: {
+  onBack: () => void;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  return (
+    <ChatShell title="Sign in to chat" subtitle="One tap · stays in your portal" onBack={onBack} scrollRef={scrollRef}>
+      <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+        <span className="tint flex size-12 items-center justify-center rounded-2xl">
+          <Bot className="size-6" />
+        </span>
+        <p className="text-sm text-muted-foreground">
+          Sign in so your chat history and replies stay with your account — it takes a few seconds.
+        </p>
+        <button
+          onClick={() => navigate(`/auth?returnTo=${encodeURIComponent(location.pathname)}`)}
+          className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground shadow-sm"
+        >
+          Sign in to chat
+        </button>
+      </div>
     </ChatShell>
   );
 }
