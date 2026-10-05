@@ -82,19 +82,37 @@ if (typeof import.meta.glob !== "function") {
 // Vitest provides import.meta.glob. The pattern must resolve from the test
 // file's location so the _generated folder is included.
 const modules = import.meta.glob("../src/convex/**/*.{ts,js}");
-// Debug: log module keys to see what glob found
-if (typeof process !== "undefined" && typeof process.versions !== "undefined" && process.versions.bun) {
-  const keys = Object.keys(modules);
-  console.log(`[harness] glob found ${keys.length} modules`);
-  for (const k of keys) {
-    console.log(`[harness]   ${k}`);
+// When Vitest's own import.meta.glob returns nothing, fall back to a plain
+// filesystem walk so convex-test can still find the _generated files.
+if (!modules || Object.keys(modules).length === 0) {
+  const fs = require("fs");
+  const path = require("path");
+  const url = require("url");
+  let dir: string;
+  if ("dirname" in import.meta && typeof import.meta.dirname === "string") {
+    dir = import.meta.dirname;
+  } else {
+    dir = path.dirname(url.fileURLToPath(import.meta.url));
   }
-  // Also try a direct import to verify the files exist
-  try {
-    const gen = await import("../src/convex/_generated/api.js");
-    console.log("[harness] direct import of _generated/api.js OK");
-  } catch (e) {
-    console.log("[harness] direct import of _generated/api.js FAILED:", (e as Error).message);
+  const anchor = "../src/convex".replace(/^\.\//, "");
+  const baseDir = path.resolve(dir, anchor);
+  const files: string[] = [];
+  function collect(dir: string) {
+    let entries: ReturnType<typeof fs.readdirSync>;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+    catch { return; }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) collect(full);
+      else if (entry.name.endsWith(".ts") || entry.name.endsWith(".js")) files.push(full);
+    }
+  }
+  collect(baseDir);
+  for (const file of files) {
+    const key = `file://${file}`;
+    if (!modules[key]) {
+      (modules as Record<string, unknown>)[key] = () => import(file as never);
+    }
   }
 }
 
