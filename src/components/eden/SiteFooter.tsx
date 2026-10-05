@@ -63,6 +63,9 @@ export function SiteFooter() {
           Cookie settings
         </button>
       </p>
+      <p className="mx-auto mt-4 w-full max-w-6xl text-center text-[10px] uppercase tracking-widest text-muted-foreground/60">
+        Made by H.A.I.O.S
+      </p>
     </footer>
   );
 }

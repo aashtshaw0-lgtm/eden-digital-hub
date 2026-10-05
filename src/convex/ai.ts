@@ -91,27 +91,41 @@ export const assistantReply = action({
           parts: [{ text: t.text }],
         })),
       });
-      const result = await chat.sendMessage(lastUser?.text ?? "Hello");
-      return { reply: result.response.text(), engine: "gemini" as const };
+      try {
+        const result = await chat.sendMessage(lastUser?.text ?? "Hello");
+        return { reply: result.response.text(), engine: "gemini" as const };
+      } catch (geminiErr) {
+        // If Gemini fails (e.g., model deprecation, quota), fall through to the
+        // vly gateway instead of surfacing a raw error to the customer.
+        console.warn("[Eden/AI] Gemini failed, using fallback:", geminiErr);
+      }
     }
 
     // Fallback: platform AI gateway (OpenAI-compatible), works with zero setup.
-    const completion = await vly.ai.completion({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...safeHistory.map((t) => ({
-          role: t.role === "user" ? ("user" as const) : ("assistant" as const),
-          content: t.text,
-        })),
-      ],
-      temperature: 0.6,
-      maxTokens: 400,
-    });
+    let completion: Awaited<ReturnType<typeof vly.ai.completion>>;
+    try {
+      completion = await vly.ai.completion({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...safeHistory.map((t) => ({
+            role: t.role === "user" ? ("user" as const) : ("assistant" as const),
+            content: t.text,
+          })),
+        ],
+        temperature: 0.6,
+        maxTokens: 400,
+      });
+    } catch (vlyErr) {
+      throw new Error("The assistant is temporarily unavailable. Please try 'Talk to Manager' for a human.");
+    }
     if (!completion.success || !completion.data) {
       throw new Error(completion.error || "The assistant is unavailable right now. Please try 'Talk to Manager'.");
     }
     const reply = completion.data.choices?.[0]?.message?.content ?? "";
+    if (!reply) {
+      throw new Error("The assistant returned an empty reply. Please try again.");
+    }
     return { reply, engine: "fallback" as const };
   },
 });
