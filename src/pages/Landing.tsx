@@ -141,7 +141,7 @@ export default function Landing() {
               key={chip}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5 + Math.random() * 0.2 }}
+              transition={{ delay: 0.55 }}
               className="clay-sm rounded-full px-3.5 py-1.5 text-xs text-muted-foreground"
             >
               {chip}

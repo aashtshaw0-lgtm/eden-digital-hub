@@ -91,7 +91,6 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
 
   const [primaryColor, setPrimaryColor] = useState(settings.primaryColor);
   const [backgroundColor, setBackgroundColor] = useState(settings.backgroundColor);
-  const [activeTheme, setActiveTheme] = useState<string | null>(null);
   const [upiId, setUpiId] = useState(settings.upiId);
   const [instagram, setInstagram] = useState(settings.socialLinks.instagram);
   const [twitter, setTwitter] = useState(settings.socialLinks.twitter);
@@ -162,7 +161,6 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
             onClick={() => {
               setPrimaryColor(settings.primaryColor);
               setBackgroundColor(settings.backgroundColor);
-              setActiveTheme(null);
             }}
             className="text-xs text-muted-foreground hover:text-foreground"
           >
@@ -187,7 +185,6 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
                   onClick={() => {
                     setPrimaryColor(theme.primary);
                     setBackgroundColor(theme.background);
-                    setActiveTheme(theme.name);
                   }}
                   className={cn(
                     "group relative flex flex-col items-center gap-1.5 rounded-xl border p-3 transition",
@@ -235,10 +232,7 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
               <input
                 type="color"
                 value={primaryColor}
-                onChange={(e) => {
-                  setPrimaryColor(e.target.value);
-                  setActiveTheme(null);
-                }}
+                onChange={(e) => setPrimaryColor(e.target.value)}
                 className="h-11 w-14 cursor-pointer rounded-xl border border-border bg-transparent p-1"
               />
               <span className="text-xs text-muted-foreground font-mono">{primaryColor}</span>
@@ -250,10 +244,7 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
               <input
                 type="color"
                 value={backgroundColor}
-                onChange={(e) => {
-                  setBackgroundColor(e.target.value);
-                  setActiveTheme(null);
-                }}
+                onChange={(e) => setBackgroundColor(e.target.value)}
                 className="h-11 w-14 cursor-pointer rounded-xl border border-border bg-transparent p-1"
               />
               <span className="text-xs text-muted-foreground font-mono">{backgroundColor}</span>

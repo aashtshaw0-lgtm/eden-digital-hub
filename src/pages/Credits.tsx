@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { useSeo } from "@/lib/seo";
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Crown, Megaphone, Sparkles } from "lucide-react";
+import { Megaphone, Sparkles } from "lucide-react";
 import { Link } from "react-router";
 
 export default function Credits() {
@@ -69,7 +69,7 @@ export default function Credits() {
                 key={tier}
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2 + Math.random() * 0.1 }}
+                transition={{ delay: 0.25 }}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold",
                   meta.chip,
