@@ -1,0 +1,17 @@
+{
+  "name": "Eden - Digital Design & Management",
+  "short_name": "Eden",
+  "description": "Logos, posters, commercial designs, thumbnails and event banners, plus event planning and social media management.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f2ea",
+  "theme_color": "#f6f2ea",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
