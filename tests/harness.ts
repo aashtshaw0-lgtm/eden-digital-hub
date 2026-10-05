@@ -79,7 +79,24 @@ if (typeof import.meta.glob !== "function") {
   };
 }
 
+// Vitest provides import.meta.glob. The pattern must resolve from the test
+// file's location so the _generated folder is included.
 const modules = import.meta.glob("../src/convex/**/*.{ts,js}");
+// Debug: log module keys to see what glob found
+if (typeof process !== "undefined" && typeof process.versions !== "undefined" && process.versions.bun) {
+  const keys = Object.keys(modules);
+  console.log(`[harness] glob found ${keys.length} modules`);
+  for (const k of keys) {
+    console.log(`[harness]   ${k}`);
+  }
+  // Also try a direct import to verify the files exist
+  try {
+    const gen = await import("../src/convex/_generated/api.js");
+    console.log("[harness] direct import of _generated/api.js OK");
+  } catch (e) {
+    console.log("[harness] direct import of _generated/api.js FAILED:", (e as Error).message);
+  }
+}
 
 /**
  * Runs the real Convex functions against an in-memory backend.
