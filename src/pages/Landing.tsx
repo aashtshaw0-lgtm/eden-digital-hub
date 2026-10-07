@@ -71,7 +71,7 @@ export default function Landing() {
         transition={{ delay: 0.04 }}
         className="relative z-10 flex justify-center px-4 pt-28 sm:pt-36"
       >
-        <SiteLogo className="w-56 sm:w-72" />
+        <SiteLogo variant="light" className="w-56 sm:w-72" />
       </motion.div>
 
       {/* ── Hero ─────────────────────────────────────────── */}

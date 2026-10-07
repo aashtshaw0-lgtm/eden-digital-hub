@@ -9,6 +9,7 @@ export interface EdenSettings {
   upiId: string;
   qrImageUrl?: string;
   logoUrl?: string;
+  logoDarkUrl?: string;
   heroLead: string;
   heroMode: "rotating" | "static";
   heroAccent: string;
@@ -61,6 +62,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         upiId: settings.upiId,
         qrImageUrl: settings.qrImageUrl ?? undefined,
         logoUrl: settings.logoUrl ?? undefined,
+        logoDarkUrl: settings.logoDarkUrl ?? undefined,
         heroLead: settings.heroLead,
         heroMode: settings.heroMode,
         heroAccent: settings.heroAccent,

@@ -125,6 +125,9 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
   const setQrImage = useMutation(api.settings.setQrImage);
   const setLogoImage = useMutation(api.settings.setLogoImage);
   const clearLogo = useMutation(api.settings.clearLogo);
+  const setLogoDarkImage = useMutation(api.settings.setLogoDarkImage);
+  const clearLogoDark = useMutation(api.settings.clearLogoDark);
+  const [logoDarkFile, setLogoDarkFile] = useState<File | null>(null);
 
   const [primaryColor, setPrimaryColor] = useState(settings.primaryColor);
   const [backgroundColor, setBackgroundColor] = useState(settings.backgroundColor);
@@ -142,6 +145,7 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
   const [qrBusy, setQrBusy] = useState(false);
   const qrRef = useRef<HTMLInputElement>(null);
   const logoRef = useRef<HTMLInputElement>(null);
+  const logoDarkRef = useRef<HTMLInputElement>(null);
 
   const save = async () => {
     setSaving(true);
@@ -224,6 +228,39 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
     }
   };
 
+  const uploadLogoDark = async (file: File | undefined | null) => {
+    if (!file) return;
+    if (!/^image\/(png|svg\+xml|avif|webp|jpeg|gif)$/.test(file.type)) {
+      toast.error("Dark logo must be a PNG, SVG, AVIF, WebP, JPEG or GIF image.");
+      return;
+    }
+    setQrBusy(true);
+    try {
+      const url = await generateUploadUrl();
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      const { storageId } = (await res.json()) as { storageId: string };
+      await setLogoDarkImage({ storageId: storageId as never });
+      toast.success("Dark-mode logo uploaded.");
+    } catch {
+      toast.error("Dark logo upload failed");
+    } finally {
+      setQrBusy(false);
+    }
+  };
+
+  const removeLogoDark = async () => {
+    try {
+      await clearLogoDark();
+      toast.success("Dark logo removed.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to remove dark logo.");
+    }
+  };
+
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <section className="clay space-y-4 p-6">
@@ -286,6 +323,57 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
               />
               <p className="text-[11px] text-muted-foreground">
                 When a logo is set, the Eden wordmark is hidden everywhere and replaced by this image.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Dark-mode logo variant — shown on dark surfaces when set. */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Dark-mode logo
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              Optional variant for dark backgrounds (PNG, SVG, AVIF, WebP, JPEG or GIF)
+            </span>
+          </div>
+          <div className="flex gap-3">
+            <div className="clay-inset flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border">
+              {settings.logoDarkUrl ? (
+                <img src={settings.logoDarkUrl} alt="Dark-mode logo" className="h-full w-full object-contain" />
+              ) : (
+                <span className="px-4 text-center text-xs text-muted-foreground">
+                  No dark logo yet
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => logoDarkFile ? uploadLogoDark(logoDarkFile) : logoDarkRef.current?.click()}
+                disabled={qrBusy}
+                className="clay-inset flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                {qrBusy ? <Loader2 className="size-4 animate-spin" /> : <CloudUpload className="size-4 text-primary" />}
+                {logoDarkFile ? "Replace dark logo" : "Upload dark logo"}
+              </button>
+              <button
+                onClick={removeLogoDark}
+                disabled={!settings.logoDarkUrl || qrBusy}
+                className="flex items-center gap-2 rounded-xl border border-red-200/70 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+              >
+                <Trash2 className="size-4" />
+                Remove dark logo
+              </button>
+              <input
+                ref={logoDarkRef}
+                type="file"
+                accept="image/png,image/svg+xml,image/avif,image/webp,image/jpeg,image/gif"
+                hidden
+                onChange={(e) => setLogoDarkFile(e.target.files?.[0] ?? null)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                When set, this is used on dark surfaces; the light logo is still used on light backgrounds.
               </p>
             </div>
           </div>

@@ -59,6 +59,8 @@ const schema = defineSchema(
       qrStorageId: v.optional(v.id("_storage")),
       /** Site logo (PNG/SVG/AVIF/WebP). Empty means the built Eden wordmark is used. */
       logoStorageId: v.optional(v.id("_storage")),
+      /** Dark-mode variant of the site logo (optional). When set, shown on dark surfaces. */
+      logoDarkStorageId: v.optional(v.id("_storage")),
       socialLinks: v.optional(
         v.object({
           instagram: v.optional(v.string()),

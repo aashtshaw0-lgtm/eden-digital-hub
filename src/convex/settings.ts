@@ -29,6 +29,9 @@ export const get = query({
           : ["with Eden", "by hand", "for keeps", "that converts"],
       qrImageUrl,
       logoUrl: row?.logoStorageId ? ((await ctx.storage.getUrl(row.logoStorageId)) ?? undefined) : undefined,
+      logoDarkUrl: row?.logoDarkStorageId
+        ? ((await ctx.storage.getUrl(row.logoDarkStorageId)) ?? undefined)
+        : undefined,
       socialLinks: {
         instagram: row?.socialLinks?.instagram ?? "",
         twitter: row?.socialLinks?.twitter ?? "",
@@ -55,6 +58,7 @@ export const update = mutation({
     heroAccent: v.optional(v.string()),
     heroAccentWords: v.optional(v.array(v.string())),
     logoStorageId: v.optional(v.id("_storage")),
+    logoDarkStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -77,6 +81,9 @@ export const update = mutation({
       ...(args.logoStorageId !== undefined
         ? { logoStorageId: args.logoStorageId }
         : {}),
+      ...(args.logoDarkStorageId !== undefined
+        ? { logoDarkStorageId: args.logoDarkStorageId }
+        : {}),
       socialLinks: {
         instagram: args.instagram,
         twitter: args.twitter,
@@ -91,10 +98,21 @@ export const update = mutation({
       if (args.logoStorageId !== undefined && existingLogo && existingLogo !== args.logoStorageId) {
         await ctx.storage.delete(existingLogo);
       }
+      const existingDarkLogo = row.logoDarkStorageId;
+      if (
+        args.logoDarkStorageId !== undefined &&
+        existingDarkLogo &&
+        existingDarkLogo !== args.logoDarkStorageId
+      ) {
+        await ctx.storage.delete(existingDarkLogo);
+      }
       await ctx.db.patch(row._id, {
         ...patch,
         ...(args.logoStorageId !== undefined
           ? { logoStorageId: args.logoStorageId }
+          : {}),
+        ...(args.logoDarkStorageId !== undefined
+          ? { logoDarkStorageId: args.logoDarkStorageId }
           : {}),
         socialLinks: {
           instagram: args.instagram ?? current.instagram ?? "",
@@ -109,6 +127,9 @@ export const update = mutation({
         backgroundColor: args.backgroundColor ?? DEFAULTS.backgroundColor,
         upiId: args.upiId ?? DEFAULTS.upiId,
         ...(args.logoStorageId !== undefined ? { logoStorageId: args.logoStorageId } : {}),
+        ...(args.logoDarkStorageId !== undefined
+          ? { logoDarkStorageId: args.logoDarkStorageId }
+          : {}),
         socialLinks: {
           instagram: args.instagram ?? "",
           twitter: args.twitter ?? "",
@@ -186,6 +207,43 @@ export const clearLogo = mutation({
     if (row?.logoStorageId) {
       await ctx.storage.delete(row.logoStorageId);
       await ctx.db.patch(row._id, { logoStorageId: null as never, updatedAt: Date.now() });
+    }
+    return null;
+  },
+});
+
+/** Removes the dark-mode variant logo (if different) then replaces it. */
+export const setLogoDarkImage = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, { storageId }) => {
+    await requireAdmin(ctx);
+    const row = await ctx.db.query("globalSettings").first();
+    if (row?.logoDarkStorageId && row.logoDarkStorageId !== storageId) {
+      await ctx.storage.delete(row.logoDarkStorageId);
+    }
+    if (row) {
+      await ctx.db.patch(row._id, { logoDarkStorageId: storageId, updatedAt: Date.now() });
+    } else {
+      await ctx.db.insert("globalSettings", {
+        ...DEFAULTS,
+        logoDarkStorageId: storageId,
+        socialLinks: { instagram: "", twitter: "", behance: "", linkedin: "" },
+        updatedAt: Date.now(),
+      });
+    }
+    return null;
+  },
+});
+
+/** Removes the dark-mode variant logo (keeps the light logo and other settings). */
+export const clearLogoDark = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const row = await ctx.db.query("globalSettings").first();
+    if (row?.logoDarkStorageId) {
+      await ctx.storage.delete(row.logoDarkStorageId);
+      await ctx.db.patch(row._id, { logoDarkStorageId: null as never, updatedAt: Date.now() });
     }
     return null;
   },
