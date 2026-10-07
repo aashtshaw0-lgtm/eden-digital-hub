@@ -2,7 +2,7 @@ import { api } from "@/convex/_generated/api";
 import { useSettings } from "@/context/SettingsProvider";
 import { cn } from "@/lib/utils";
 import { useMutation } from "convex/react";
-import { CloudUpload, Loader2, Palette, Save } from "lucide-react";
+import { CloudUpload, Loader2, Palette, Save, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -109,6 +109,7 @@ export function AdminSettings() {
     settings.heroMode,
     settings.heroAccent,
     settings.heroAccentWords.join("|"),
+    settings.logoUrl,
     settings.socialLinks.instagram,
     settings.socialLinks.twitter,
     settings.socialLinks.behance,
@@ -122,6 +123,8 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
   const update = useMutation(api.settings.update);
   const generateUploadUrl = useMutation(api.settings.generateUploadUrl);
   const setQrImage = useMutation(api.settings.setQrImage);
+  const setLogoImage = useMutation(api.settings.setLogoImage);
+  const clearLogo = useMutation(api.settings.clearLogo);
 
   const [primaryColor, setPrimaryColor] = useState(settings.primaryColor);
   const [backgroundColor, setBackgroundColor] = useState(settings.backgroundColor);
@@ -134,9 +137,11 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
   const [heroMode, setHeroMode] = useState<"rotating" | "static">(settings.heroMode);
   const [heroAccent, setHeroAccent] = useState(settings.heroAccent);
   const [heroWords, setHeroWords] = useState(settings.heroAccentWords.join(", "));
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [qrBusy, setQrBusy] = useState(false);
   const qrRef = useRef<HTMLInputElement>(null);
+  const logoRef = useRef<HTMLInputElement>(null);
 
   const save = async () => {
     setSaving(true);
@@ -153,7 +158,7 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
         heroMode,
         heroAccent,
         heroAccentWords: heroWords.split(","),
-      });
+            });
       toast.success("Website updated — live everywhere now.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");
@@ -186,6 +191,39 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
     }
   };
 
+  const uploadLogo = async (file: File | undefined | null) => {
+    if (!file) return;
+    if (!/^image\/(png|svg\+xml|avif|webp|jpeg|gif)$/.test(file.type)) {
+      toast.error("Logo must be a PNG, SVG, AVIF, WebP, JPEG or GIF image.");
+      return;
+    }
+    setQrBusy(true);
+    try {
+      const url = await generateUploadUrl();
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      const { storageId } = (await res.json()) as { storageId: string };
+      await setLogoImage({ storageId: storageId as never });
+      toast.success("Logo uploaded — shown instead of the Eden wordmark.");
+    } catch {
+      toast.error("Logo upload failed");
+    } finally {
+      setQrBusy(false);
+    }
+  };
+
+  const removeLogo = async () => {
+    try {
+      await clearLogo();
+      toast.success("Logo removed — the Eden wordmark is back.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to remove logo.");
+    }
+  };
+
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <section className="clay space-y-4 p-6">
@@ -200,6 +238,57 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
           >
             Reset to saved
           </button>
+        </div>
+
+        {/* Studio logo — replaces the Eden wordmark on the live site when set. */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Studio logo
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              PNG, SVG, AVIF, WebP, JPEG or GIF — up to 4 MB
+            </span>
+          </div>
+          <div className="flex gap-3">
+            <div className="clay-inset flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border">
+              {settings.logoUrl ? (
+                <img src={settings.logoUrl} alt="Current logo" className="h-full w-full object-contain" />
+              ) : (
+                <span className="px-4 text-center text-xs text-muted-foreground">
+                  No logo yet
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => logoFile ? uploadLogo(logoFile) : logoRef.current?.click()}
+                disabled={qrBusy}
+                className="clay-inset flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                {qrBusy ? <Loader2 className="size-4 animate-spin" /> : <CloudUpload className="size-4 text-primary" />}
+                {logoFile ? "Replace existing logo" : "Upload logo"}
+              </button>
+              <button
+                onClick={removeLogo}
+                disabled={!settings.logoUrl || qrBusy}
+                className="flex items-center gap-2 rounded-xl border border-red-200/70 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+              >
+                <Trash2 className="size-4" />
+                Remove logo
+              </button>
+              <input
+                ref={logoRef}
+                type="file"
+                accept="image/png,image/svg+xml,image/avif,image/webp,image/jpeg,image/gif"
+                hidden
+                onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                When a logo is set, the Eden wordmark is hidden everywhere and replaced by this image.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Quick colour themes — two-color preset swatches */}

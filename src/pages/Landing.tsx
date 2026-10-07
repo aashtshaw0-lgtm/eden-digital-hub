@@ -5,7 +5,7 @@ import { useSettings } from "@/context/SettingsProvider";
 import { serviceIcon } from "@/components/eden/serviceIcons";
 import { Portfolio3D } from "@/components/eden/Portfolio3D";
 
-import { EdenWordmark } from "@/components/eden/EdenWordmark";
+import { SiteLogo } from "@/components/eden/SiteLogo";
 import { Reveal } from "@/components/eden/Reveal";
 import { FloatingOrb } from "@/components/eden/FloatingOrb";
 import { AnimatePresence, motion } from "framer-motion";
@@ -71,7 +71,7 @@ export default function Landing() {
         transition={{ delay: 0.04 }}
         className="relative z-10 flex justify-center px-4 pt-28 sm:pt-36"
       >
-        <EdenWordmark className="w-56 sm:w-72" />
+        <SiteLogo className="w-56 sm:w-72" />
       </motion.div>
 
       {/* ── Hero ─────────────────────────────────────────── */}

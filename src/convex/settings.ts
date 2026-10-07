@@ -28,6 +28,7 @@ export const get = query({
           ? row.heroAccentWords
           : ["with Eden", "by hand", "for keeps", "that converts"],
       qrImageUrl,
+      logoUrl: row?.logoStorageId ? ((await ctx.storage.getUrl(row.logoStorageId)) ?? undefined) : undefined,
       socialLinks: {
         instagram: row?.socialLinks?.instagram ?? "",
         twitter: row?.socialLinks?.twitter ?? "",
@@ -53,6 +54,7 @@ export const update = mutation({
     heroMode: v.optional(v.union(v.literal("rotating"), v.literal("static"))),
     heroAccent: v.optional(v.string()),
     heroAccentWords: v.optional(v.array(v.string())),
+    logoStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -72,6 +74,9 @@ export const update = mutation({
               .slice(0, 8),
           }
         : {}),
+      ...(args.logoStorageId !== undefined
+        ? { logoStorageId: args.logoStorageId }
+        : {}),
       socialLinks: {
         instagram: args.instagram,
         twitter: args.twitter,
@@ -82,8 +87,15 @@ export const update = mutation({
     };
     if (row) {
       const current = row.socialLinks ?? {};
+      const existingLogo = row.logoStorageId;
+      if (args.logoStorageId !== undefined && existingLogo && existingLogo !== args.logoStorageId) {
+        await ctx.storage.delete(existingLogo);
+      }
       await ctx.db.patch(row._id, {
         ...patch,
+        ...(args.logoStorageId !== undefined
+          ? { logoStorageId: args.logoStorageId }
+          : {}),
         socialLinks: {
           instagram: args.instagram ?? current.instagram ?? "",
           twitter: args.twitter ?? current.twitter ?? "",
@@ -96,6 +108,7 @@ export const update = mutation({
         primaryColor: args.primaryColor ?? DEFAULTS.primaryColor,
         backgroundColor: args.backgroundColor ?? DEFAULTS.backgroundColor,
         upiId: args.upiId ?? DEFAULTS.upiId,
+        ...(args.logoStorageId !== undefined ? { logoStorageId: args.logoStorageId } : {}),
         socialLinks: {
           instagram: args.instagram ?? "",
           twitter: args.twitter ?? "",
@@ -136,6 +149,43 @@ export const setQrImage = mutation({
         socialLinks: { instagram: "", twitter: "", behance: "", linkedin: "" },
         updatedAt: Date.now(),
       });
+    }
+    return null;
+  },
+});
+
+/** Removes the currently stored logo (if different) then replaces it. */
+export const setLogoImage = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, { storageId }) => {
+    await requireAdmin(ctx);
+    const row = await ctx.db.query("globalSettings").first();
+    if (row?.logoStorageId && row.logoStorageId !== storageId) {
+      await ctx.storage.delete(row.logoStorageId);
+    }
+    if (row) {
+      await ctx.db.patch(row._id, { logoStorageId: storageId, updatedAt: Date.now() });
+    } else {
+      await ctx.db.insert("globalSettings", {
+        ...DEFAULTS,
+        logoStorageId: storageId,
+        socialLinks: { instagram: "", twitter: "", behance: "", linkedin: "" },
+        updatedAt: Date.now(),
+      });
+    }
+    return null;
+  },
+});
+
+/** Removes the studio logo from global settings (keeps QR, colors, hero, links). */
+export const clearLogo = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const row = await ctx.db.query("globalSettings").first();
+    if (row?.logoStorageId) {
+      await ctx.storage.delete(row.logoStorageId);
+      await ctx.db.patch(row._id, { logoStorageId: null as never, updatedAt: Date.now() });
     }
     return null;
   },
