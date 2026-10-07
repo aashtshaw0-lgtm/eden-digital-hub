@@ -10,6 +10,10 @@ export interface EdenSettings {
   qrImageUrl?: string;
   logoUrl?: string;
   logoDarkUrl?: string;
+  brandWord?: string;
+  brandTagline?: string;
+  logoLightColor?: string;
+  logoDarkColor?: string;
   heroLead: string;
   heroMode: "rotating" | "static";
   heroAccent: string;
@@ -63,6 +67,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         qrImageUrl: settings.qrImageUrl ?? undefined,
         logoUrl: settings.logoUrl ?? undefined,
         logoDarkUrl: settings.logoDarkUrl ?? undefined,
+        brandWord: settings.brandWord ?? undefined,
+        brandTagline: settings.brandTagline ?? undefined,
+        logoLightColor: settings.logoLightColor ?? undefined,
+        logoDarkColor: settings.logoDarkColor ?? undefined,
         heroLead: settings.heroLead,
         heroMode: settings.heroMode,
         heroAccent: settings.heroAccent,

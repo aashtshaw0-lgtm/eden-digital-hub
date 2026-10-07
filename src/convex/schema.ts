@@ -61,6 +61,14 @@ const schema = defineSchema(
       logoStorageId: v.optional(v.id("_storage")),
       /** Dark-mode variant of the site logo (optional). When set, shown on dark surfaces. */
       logoDarkStorageId: v.optional(v.id("_storage")),
+      /** When no image logo is set, this word is rendered as the logo mark. */
+      brandWord: v.optional(v.string()),
+      /** Optional tagline shown under the brand word. */
+      brandTagline: v.optional(v.string()),
+      /** Logo text color for light backgrounds. */
+      logoLightColor: v.optional(v.string()),
+      /** Logo text color for dark backgrounds. */
+      logoDarkColor: v.optional(v.string()),
       socialLinks: v.optional(
         v.object({
           instagram: v.optional(v.string()),

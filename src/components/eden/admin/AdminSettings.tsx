@@ -110,6 +110,11 @@ export function AdminSettings() {
     settings.heroAccent,
     settings.heroAccentWords.join("|"),
     settings.logoUrl,
+    settings.logoDarkUrl,
+    settings.brandWord,
+    settings.brandTagline,
+    settings.logoLightColor,
+    settings.logoDarkColor,
     settings.socialLinks.instagram,
     settings.socialLinks.twitter,
     settings.socialLinks.behance,
@@ -128,6 +133,17 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
   const setLogoDarkImage = useMutation(api.settings.setLogoDarkImage);
   const clearLogoDark = useMutation(api.settings.clearLogoDark);
   const [logoDarkFile, setLogoDarkFile] = useState<File | null>(null);
+
+  // Logo mode: "image" (uploaded image) vs "text" (brand word mark).
+  const [logoMode, setLogoMode] = useState<"image" | "text">("image");
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoDarkBusy, setLogoDarkBusy] = useState(false);
+  const [removeLogoBusy, setRemoveLogoBusy] = useState(false);
+  const [removeLogoDarkBusy, setRemoveLogoDarkBusy] = useState(false);
+  const [brandWord, setBrandWord] = useState(settings.brandWord ?? "");
+  const [brandTagline, setBrandTagline] = useState(settings.brandTagline ?? "");
+  const [logoLightColor, setLogoLightColor] = useState(settings.logoLightColor ?? "#14110f");
+  const [logoDarkColor, setLogoDarkColor] = useState(settings.logoDarkColor ?? "#ffffff");
 
   const [primaryColor, setPrimaryColor] = useState(settings.primaryColor);
   const [backgroundColor, setBackgroundColor] = useState(settings.backgroundColor);
@@ -162,7 +178,11 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
         heroMode,
         heroAccent,
         heroAccentWords: heroWords.split(","),
-            });
+        brandWord: brandWord || undefined,
+        brandTagline: brandTagline || undefined,
+        logoLightColor: logoLightColor || undefined,
+        logoDarkColor: logoDarkColor || undefined,
+      });
       toast.success("Website updated — live everywhere now.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");
@@ -198,33 +218,46 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
   const uploadLogo = async (file: File | undefined | null) => {
     if (!file) return;
     if (!/^image\/(png|svg\+xml|avif|webp|jpeg|gif)$/.test(file.type)) {
-      toast.error("Logo must be a PNG, SVG, AVIF, WebP, JPEG or GIF image.");
+      toast.error("Light logo must be a PNG, SVG, AVIF, WebP, JPEG or GIF image.");
       return;
     }
-    setQrBusy(true);
+    setLogoBusy(true);
     try {
       const url = await generateUploadUrl();
+      if (!url) {
+        toast.error("Logo upload not available: storage may not be enabled on this deployment.");
+        return;
+      }
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": file.type },
         body: file,
       });
+      if (!res.ok) {
+        toast.error(`Logo upload failed (HTTP ${res.status}).`);
+        return;
+      }
       const { storageId } = (await res.json()) as { storageId: string };
       await setLogoImage({ storageId: storageId as never });
-      toast.success("Logo uploaded — shown instead of the Eden wordmark.");
-    } catch {
-      toast.error("Logo upload failed");
+      toast.success("Light logo uploaded — shown on light backgrounds.");
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Logo upload failed.",
+      );
     } finally {
-      setQrBusy(false);
+      setLogoBusy(false);
     }
   };
 
   const removeLogo = async () => {
+    setRemoveLogoBusy(true);
     try {
       await clearLogo();
-      toast.success("Logo removed — the Eden wordmark is back.");
+      toast.success("Light logo removed — the text or Eden wordmark is back.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to remove logo.");
+      toast.error(e instanceof Error ? e.message : "Failed to remove light logo.");
+    } finally {
+      setRemoveLogoBusy(false);
     }
   };
 
@@ -234,30 +267,43 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
       toast.error("Dark logo must be a PNG, SVG, AVIF, WebP, JPEG or GIF image.");
       return;
     }
-    setQrBusy(true);
+    setLogoDarkBusy(true);
     try {
       const url = await generateUploadUrl();
+      if (!url) {
+        toast.error("Dark logo upload not available: storage may not be enabled on this deployment.");
+        return;
+      }
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": file.type },
         body: file,
       });
+      if (!res.ok) {
+        toast.error(`Dark logo upload failed (HTTP ${res.status}).`);
+        return;
+      }
       const { storageId } = (await res.json()) as { storageId: string };
       await setLogoDarkImage({ storageId: storageId as never });
-      toast.success("Dark-mode logo uploaded.");
-    } catch {
-      toast.error("Dark logo upload failed");
+      toast.success("Dark logo uploaded — shown on dark backgrounds.");
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Dark logo upload failed.",
+      );
     } finally {
-      setQrBusy(false);
+      setLogoDarkBusy(false);
     }
   };
 
   const removeLogoDark = async () => {
+    setRemoveLogoDarkBusy(true);
     try {
       await clearLogoDark();
       toast.success("Dark logo removed.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to remove dark logo.");
+    } finally {
+      setRemoveLogoDarkBusy(false);
     }
   };
 
@@ -277,7 +323,7 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
           </button>
         </div>
 
-        {/* Studio logo — replaces the Eden wordmark on the live site when set. */}
+        {/* Studio logo — image or text; auto-adjusts to light/dark surfaces. */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -379,7 +425,7 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
           </div>
         </div>
 
-        {/* Quick colour themes — two-color preset swatches */}
+{/* Quick colour themes — two-color preset swatches */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Palette className="size-3.5 text-muted-foreground" />
