@@ -1,5 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { useContent } from "@/context/ContentProvider";
+import { AuroraBackground, TiltCard } from "@/components/eden/motion";
 import { inr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSeo } from "@/lib/seo";
@@ -47,8 +48,9 @@ export default function Products() {
   });
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
-      <header className="max-w-2xl">
+    <main className="relative mx-auto w-full max-w-6xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
+      <AuroraBackground className="opacity-60" />
+      <header className="relative max-w-2xl">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t("products.eyebrow")}
         </p>
@@ -126,8 +128,10 @@ export default function Products() {
                   damping: 20,
                   delay: Math.min(index * 0.09, 0.9),
                 }}
-                className="clay clay-press group overflow-hidden"
+                className="group h-full"
               >
+                <TiltCard className="h-full rounded-[1.35rem]" intensity={6}>
+                <div className="clay clay-press h-full overflow-hidden">
                 <figure>
                   {product.imageUrl ? (
                     <img
@@ -165,6 +169,8 @@ export default function Products() {
                     {inr(product.price)}
                   </p>
                 </div>
+                </div>
+                </TiltCard>
               </motion.li>
             ))}
           </ul>

@@ -187,6 +187,122 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     ],
   },
   {
+    id: "chat",
+    title: "Live chat & assistant",
+    fields: [
+      { key: "chat.chooser.title", label: "Chooser heading", default: "How can we help?" },
+      {
+        key: "chat.instant.name",
+        label: "Instant option name",
+        default: "Eden Assistant (Instant)",
+      },
+      {
+        key: "chat.instant.desc",
+        label: "Instant option description",
+        default: "Pricing, tiers and turnaround — answered in seconds.",
+      },
+      {
+        key: "chat.manager.name",
+        label: "Live option name",
+        default: "Talk to Manager (Live)",
+      },
+      {
+        key: "chat.manager.desc",
+        label: "Live option description",
+        default: "A real human on a live channel — for quotes & custom work.",
+      },
+      {
+        key: "chat.greeting",
+        label: "Assistant greeting",
+        type: "textarea",
+        default:
+          "Hi, I'm Eden's assistant 🌿 Ask me about our services, tiers or pricing — I know the full menu.",
+      },
+      { key: "chat.assistant.title", label: "Assistant panel title", default: "Eden Assistant" },
+      {
+        key: "chat.assistant.subtitle",
+        label: "Assistant panel subtitle",
+        default: "Instant · always on",
+      },
+      { key: "chat.manager.title", label: "Manager panel title", default: "Live Manager" },
+      {
+        key: "chat.manager.subtitle",
+        label: "Manager panel subtitle",
+        default: "Live · usually replies fast",
+      },
+      {
+        key: "chat.manager.subtitleResolved",
+        label: "Manager subtitle when resolved",
+        default: "Resolved · send to reopen",
+      },
+      { key: "chat.connecting", label: "Connecting line", default: "Connecting…" },
+      {
+        key: "chat.hello",
+        label: "Empty thread line",
+        default: "Say hello — {you} are chatting with the {brand} team.",
+      },
+      {
+        key: "chat.error",
+        label: "Assistant error line",
+        type: "textarea",
+        default: "I hit a snag — please try again, or use 'Talk to Manager' for a human.",
+      },
+      { key: "chat.signin.title", label: "Sign-in prompt title", default: "Sign in to chat" },
+      {
+        key: "chat.signin.subtitle",
+        label: "Sign-in prompt subtitle",
+        default: "One tap · stays in your portal",
+      },
+      {
+        key: "chat.signin.body",
+        label: "Sign-in prompt body",
+        type: "textarea",
+        default:
+          "Sign in so your chat history and replies stay with your account — it takes a few seconds.",
+      },
+      { key: "chat.placeholder", label: "Message box placeholder", default: "Type a message…" },
+    ],
+  },
+  {
+    id: "sheet",
+    title: "Service sheet (tiers & intake form)",
+    fields: [
+      { key: "sheet.chooseHeading", label: "Tier step label", default: "Choose your tier" },
+      {
+        key: "sheet.intakeHeading",
+        label: "Intake step label",
+        default: "Intake · tell us everything",
+      },
+      { key: "sheet.backToTiers", label: "Back link", default: "Back to tiers" },
+      { key: "sheet.contact", label: "Contact section label", default: "Contact" },
+      { key: "sheet.designBrief", label: "Design brief section", default: "Design brief" },
+      { key: "sheet.references", label: "References section", default: "References (optional)" },
+      { key: "sheet.eventDetails", label: "Event details section", default: "Event details" },
+      { key: "sheet.channels", label: "Channels section", default: "Channels" },
+    ],
+  },
+  {
+    id: "cookies",
+    title: "Cookie banner",
+    fields: [
+      {
+        key: "cookies.title",
+        label: "Banner heading",
+        default: "Only the essential cookies here",
+      },
+      {
+        key: "cookies.body",
+        label: "Banner body (before the policy link)",
+        type: "textarea",
+        default:
+          "We use local storage for your sign-in and cart — no ad trackers, no analytics pixels. Details in the",
+      },
+      { key: "cookies.linkLabel", label: "Policy link text", default: "Cookie Policy" },
+      { key: "cookies.accept", label: "Accept button", default: "Accept all" },
+      { key: "cookies.necessary", label: "Necessary button", default: "Necessary only" },
+    ],
+  },
+  {
     id: "notFound",
     title: "Page not found",
     fields: [

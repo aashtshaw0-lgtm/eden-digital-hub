@@ -1,4 +1,5 @@
 import { api } from "@/convex/_generated/api";
+import { useContent } from "@/context/ContentProvider";
 import { useAuth } from "@/hooks/use-auth";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowUp, Bot, MessagesSquare, Sparkles, X } from "lucide-react";
@@ -62,10 +63,11 @@ function Chooser({
   onPick: (m: Mode) => void;
   onClose: () => void;
 }) {
+  const { t } = useContent();
   return (
     <div className="flex flex-col gap-3 p-5">
       <div className="flex items-center justify-between">
-        <p className="font-display text-lg font-semibold">How can we help?</p>
+        <p className="font-display text-lg font-semibold">{t("chat.chooser.title")}</p>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground" aria-label="Close">
           <X className="size-4" />
         </button>
@@ -78,9 +80,9 @@ function Chooser({
           <Sparkles className="size-5" />
         </span>
         <span>
-          <span className="block text-sm font-semibold">Eden Assistant (Instant)</span>
+          <span className="block text-sm font-semibold">{t("chat.instant.name")}</span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
-            Pricing, tiers and turnaround — answered in seconds.
+            {t("chat.instant.desc")}
           </span>
         </span>
       </button>
@@ -92,9 +94,9 @@ function Chooser({
           <Bot className="size-5" />
         </span>
         <span>
-          <span className="block text-sm font-semibold">Talk to Manager (Live)</span>
+          <span className="block text-sm font-semibold">{t("chat.manager.name")}</span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
-            A real human on a live channel — for quotes & custom work.
+            {t("chat.manager.desc")}
           </span>
         </span>
       </button>
@@ -109,10 +111,11 @@ interface Msg {
 
 function AiChat({ onBack }: { onBack: () => void }) {
   const { isAuthenticated } = useAuth();
+  const { t } = useContent();
   const [messages, setMessages] = useState<Msg[]>([
     {
       role: "model",
-      text: "Hi, I'm Eden's assistant 🌿 Ask me about our services, tiers or pricing — I know the full menu.",
+      text: t("chat.greeting"),
     },
   ]);
   const [input, setInput] = useState("");
@@ -141,7 +144,7 @@ function AiChat({ onBack }: { onBack: () => void }) {
     } catch {
       setMessages((prev) => [
         ...prev,
-        { role: "model", text: "I hit a snag — please try again, or use 'Talk to Manager' for a human." },
+        { role: "model", text: t("chat.error") },
       ]);
     } finally {
       setBusy(false);
@@ -153,7 +156,12 @@ function AiChat({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <ChatShell title="Eden Assistant" subtitle="Instant · always on" onBack={onBack} scrollRef={scrollRef}>
+    <ChatShell
+      title={t("chat.assistant.title")}
+      subtitle={t("chat.assistant.subtitle")}
+      onBack={onBack}
+      scrollRef={scrollRef}
+    >
       {messages.map((m, i) => (
         <Bubble key={i} index={i} fromAi={m.role === "model"} text={m.text} />
       ))}
@@ -179,6 +187,7 @@ function ManagerChat({ onBack }: { onBack: () => void }) {
   const session = useQuery(api.chat.mySession, isAuthenticated ? {} : "skip");
   const startSession = useMutation(api.chat.startSession);
   const sendMessage = useMutation(api.chat.sendMessage);
+  const { t, brandName } = useContent();
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   // Guards against firing the mutation twice while the first is in flight.
@@ -226,16 +235,20 @@ function ManagerChat({ onBack }: { onBack: () => void }) {
 
   return (
     <ChatShell
-      title="Live Manager"
-      subtitle={session?.status === "resolved" ? "Resolved · send to reopen" : "Live · usually replies fast"}
+      title={t("chat.manager.title")}
+      subtitle={
+        session?.status === "resolved"
+          ? t("chat.manager.subtitleResolved")
+          : t("chat.manager.subtitle")
+      }
       onBack={onBack}
       scrollRef={scrollRef}
     >
       {messages === undefined ? (
-        <p className="px-4 py-6 text-center text-xs text-muted-foreground">Connecting…</p>
+        <p className="px-4 py-6 text-center text-xs text-muted-foreground">{t("chat.connecting")}</p>
       ) : messages.length === 0 ? (
         <p className="px-4 py-6 text-center text-xs text-muted-foreground">
-          Say hello — {user?.email ?? "you"} are chatting with the Eden team.
+          {t("chat.hello", { you: user?.email ?? "you", brand: brandName })}
         </p>
       ) : (
         messages.map((m, i) => (
@@ -245,7 +258,7 @@ function ManagerChat({ onBack }: { onBack: () => void }) {
             // when the studio owner is the one reading their own thread.
             side={m.senderId === user?._id ? "mine" : "theirs"}
             text={m.content}
-            senderName={m.senderId === user?._id ? undefined : "Eden studio"}
+            senderName={m.senderId === user?._id ? undefined : `${brandName} studio`}
             createdAt={m.createdAt}
             index={i}
           />
@@ -270,20 +283,24 @@ function SignInPrompt({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useContent();
   return (
-    <ChatShell title="Sign in to chat" subtitle="One tap · stays in your portal" onBack={onBack} scrollRef={scrollRef}>
+    <ChatShell
+      title={t("chat.signin.title")}
+      subtitle={t("chat.signin.subtitle")}
+      onBack={onBack}
+      scrollRef={scrollRef}
+    >
       <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
         <span className="tint flex size-12 items-center justify-center rounded-2xl">
           <Bot className="size-6" />
         </span>
-        <p className="text-sm text-muted-foreground">
-          Sign in so your chat history and replies stay with your account — it takes a few seconds.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("chat.signin.body")}</p>
         <button
           onClick={() => navigate(`/auth?returnTo=${encodeURIComponent(location.pathname)}`)}
           className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground shadow-sm"
         >
-          Sign in to chat
+          {t("chat.signin.title")}
         </button>
       </div>
     </ChatShell>
@@ -347,6 +364,7 @@ function ChatInput({
   onSend: () => void;
   disabled?: boolean;
 }) {
+  const { t } = useContent();
   return (
     <form
       onSubmit={(e) => {
@@ -358,7 +376,7 @@ function ChatInput({
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Type a message…"
+        placeholder={t("chat.placeholder")}
         className="clay-inset min-w-0 flex-1 rounded-full px-4 py-2.5 text-sm outline-none placeholder:text-muted-foreground/70 focus:ring-2 focus:ring-ring/40"
       />
       <button

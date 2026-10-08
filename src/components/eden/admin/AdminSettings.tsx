@@ -1,4 +1,5 @@
 import { api } from "@/convex/_generated/api";
+import { AdminBrandKit } from "@/components/eden/admin/AdminBrandKit";
 import { useContent } from "@/context/ContentProvider";
 import { useSettings } from "@/context/SettingsProvider";
 import { cn } from "@/lib/utils";
@@ -679,6 +680,18 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
           </div>
         </div>
         )}
+
+        {/* AI brand kit — colour pairs, taglines and logo words from one brief. */}
+        <AdminBrandKit
+          currentPrimary={primaryColor}
+          currentBackground={backgroundColor}
+          onApplyPalette={(primary, background) => {
+            setPrimaryColor(primary);
+            setBackgroundColor(background);
+          }}
+          onApplyTagline={setBrandTagline}
+          onApplyBrandWord={setBrandWord}
+        />
 
         {/* Quick colour themes — two-color preset swatches */}
         <div className="space-y-3">

@@ -1,5 +1,6 @@
 import { useCart } from "@/context/CartProvider";
 import { useContent } from "@/context/ContentProvider";
+import { ScrollProgress } from "@/components/eden/motion";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/convex/_generated/api";
 import { inr } from "@/lib/format";
@@ -57,6 +58,8 @@ export function DynamicIsland() {
   const isAdmin = role === "manager" || role === "super_owner";
 
   return (
+    <>
+    <ScrollProgress />
     <motion.nav
       layout
       transition={{ type: "spring", stiffness: 380, damping: 32 }}
@@ -152,5 +155,6 @@ export function DynamicIsland() {
         )}
       </AnimatePresence>
     </motion.nav>
+    </>
   );
 }

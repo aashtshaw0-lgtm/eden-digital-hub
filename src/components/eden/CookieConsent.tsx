@@ -1,3 +1,4 @@
+import { useContent } from "@/context/ContentProvider";
 import { AnimatePresence, motion } from "framer-motion";
 import { Cookie } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -24,6 +25,7 @@ function storedChoice(): Consent | null {
  * "Cookie settings" link.
  */
 export function CookieConsent() {
+  const { t } = useContent();
   const { pathname } = useLocation();
   const [dismissed, setDismissed] = useState(false);
   const [forcedOpen, setForcedOpen] = useState(false);
@@ -67,18 +69,15 @@ export function CookieConsent() {
               <Cookie className="size-4" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium leading-snug">
-                Only the essential cookies here
-              </p>
+              <p className="text-sm font-medium leading-snug">{t("cookies.title")}</p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                We use local storage for your sign-in and cart — no ad trackers, no analytics
-                pixels. Details in the{" "}
+                {t("cookies.body")}{" "}
                 <Link
                   to="/legal?tab=cookies"
                   onClick={() => setDismissed(true)}
                   className="font-medium text-primary hover:underline"
                 >
-                  Cookie Policy
+                  {t("cookies.linkLabel")}
                 </Link>
                 .
               </p>
@@ -87,13 +86,13 @@ export function CookieConsent() {
                   onClick={() => choose("all")}
                   className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
                 >
-                  Accept all
+                  {t("cookies.accept")}
                 </button>
                 <button
                   onClick={() => choose("necessary")}
                   className="clay-sm rounded-full px-4 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Necessary only
+                  {t("cookies.necessary")}
                 </button>
               </div>
             </div>

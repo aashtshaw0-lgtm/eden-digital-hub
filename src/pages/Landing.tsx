@@ -9,6 +9,13 @@ import { Portfolio3D } from "@/components/eden/Portfolio3D";
 import { SiteLogo } from "@/components/eden/SiteLogo";
 import { Reveal } from "@/components/eden/Reveal";
 import { FloatingOrb } from "@/components/eden/FloatingOrb";
+import {
+  AuroraBackground,
+  Magnetic,
+  Marquee,
+  ShimmerText,
+  TiltCard,
+} from "@/components/eden/motion";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -60,6 +67,9 @@ export default function Landing() {
 
   return (
     <main className="relative min-h-dvh overflow-hidden">
+      {/* Drifting colour field + paper grain, behind the whole page */}
+      <AuroraBackground />
+
       {/* Ambient 3D orbs in background */}
       <FloatingOrb size={400} speed={20} opacity={0.15} />
       <FloatingOrb size={300} speed={25} opacity={0.12} className="right-0 top-20" />
@@ -102,13 +112,15 @@ export default function Landing() {
                   animate={{ opacity: 1, y: 0, rotateX: 0 }}
                   exit={{ opacity: 0, y: -14, rotateX: 10 }}
                   transition={{ duration: 0.4, ease: "easeOut" }}
-                  className="inline-block italic text-emerald-700 dark:text-emerald-400"
+                  className="inline-block italic"
                 >
-                  {words[wordIndex]}
+                  <ShimmerText>{words[wordIndex]}</ShimmerText>
                 </motion.span>
               </AnimatePresence>
             ) : (
-              <span className="inline-block italic text-emerald-700 dark:text-emerald-400">{heroAccent}</span>
+              <span className="inline-block italic">
+                <ShimmerText>{heroAccent}</ShimmerText>
+              </span>
             )}
           </span>
         </motion.h1>
@@ -128,12 +140,14 @@ export default function Landing() {
           transition={{ delay: 0.24 }}
           className="mt-8 flex flex-wrap items-center justify-center gap-3"
         >
-          <Link
-            to="/services"
-            className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-md transition hover:brightness-110 hover:shadow-lg hover:shadow-primary/20"
-          >
-            {t("home.hero.ctaServices")}
-          </Link>
+          <Magnetic>
+            <Link
+              to="/services"
+              className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-md transition hover:brightness-110 hover:shadow-lg hover:shadow-primary/20"
+            >
+              {t("home.hero.ctaServices")}
+            </Link>
+          </Magnetic>
           <a
             href="#portfolio"
             className="clay-sm rounded-full px-6 py-3 text-sm font-semibold transition hover:text-primary hover:shadow-md"
@@ -166,6 +180,25 @@ export default function Landing() {
             </motion.span>
           ))}
         </motion.div>
+      </section>
+
+      {/* ── Service ticker ─────────────────────────────────
+          Real services and their starting prices stream past, so the shelf
+          keeps moving without another fetch or a hardcoded list. */}
+      <section className="relative z-10 border-y border-border/50 bg-card/30 py-5">
+        <Marquee seconds={46}>
+          {(services ?? []).map((s) => (
+            <span key={s._id} className="flex items-center gap-3">
+              <span className="font-display text-sm font-semibold">{s.name}</span>
+              <span className="text-xs text-muted-foreground">
+                {t("services.from")} {inr(Math.min(...s.tiers.map((t) => t.basePrice)))}
+              </span>
+              <span aria-hidden className="text-primary/40">
+                ✦
+              </span>
+            </span>
+          ))}
+        </Marquee>
       </section>
 
       {/* ── Portfolio masonry ────────────────────────────── */}
@@ -214,20 +247,21 @@ export default function Landing() {
                 transition={{ delay: i * 0.06, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                 style={{ perspective: "800px" }}
               >
-                <Link
-                  to="/services"
-                  className="clay clay-press block h-full p-5 transition-shadow hover:shadow-xl"
-                  style={{ transformStyle: "preserve-3d" }}
-                >
-                  <span className="tint flex size-11 items-center justify-center rounded-2xl shadow-inner">
-                    <Icon className="size-5" />
-                  </span>
-                  <h3 className="mt-4 font-semibold">{s.name}</h3>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{s.tagline}</p>
-                  <p className="mt-3 text-sm font-semibold text-primary">
-                    {t("services.from")} {inr(from)}
-                  </p>
-                </Link>
+                <TiltCard className="h-full rounded-[1.35rem]" intensity={7}>
+                  <Link
+                    to="/services"
+                    className="clay clay-press block h-full p-5 transition-shadow hover:shadow-xl"
+                  >
+                    <span className="tint flex size-11 items-center justify-center rounded-2xl shadow-inner">
+                      <Icon className="size-5" />
+                    </span>
+                    <h3 className="mt-4 font-semibold">{s.name}</h3>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{s.tagline}</p>
+                    <p className="mt-3 text-sm font-semibold text-primary">
+                      {t("services.from")} {inr(from)}
+                    </p>
+                  </Link>
+                </TiltCard>
               </motion.div>
             );
           })}

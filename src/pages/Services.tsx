@@ -1,4 +1,5 @@
 import { ServiceSheet } from "@/components/eden/ServiceSheet";
+import { AuroraBackground, TiltCard } from "@/components/eden/motion";
 import { api } from "@/convex/_generated/api";
 import { useContent } from "@/context/ContentProvider";
 import { inr } from "@/lib/format";
@@ -65,8 +66,9 @@ export default function Services() {
   });
 
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-6xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
-      <header className="mb-8">
+    <main className="relative mx-auto min-h-dvh w-full max-w-6xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
+      <AuroraBackground className="opacity-70" />
+      <header className="relative mb-8">
         <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
           {t("services.title")}
         </h1>
@@ -102,14 +104,18 @@ export default function Services() {
             const Icon = serviceIcon(s.slug);
             const from = Math.min(...s.tiers.map((t) => t.basePrice));
             return (
-              <motion.button
+              <motion.div
                 key={s._id}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
+                className="relative"
+              >
+              <TiltCard className="h-full rounded-[1.35rem]" intensity={8}>
+              <motion.button
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setActive(s)}
-                className="clay clay-press flex flex-col items-start p-6 text-left"
+                className="clay clay-press flex h-full w-full flex-col items-start p-6 text-left"
               >
                 <span className="tint flex size-12 items-center justify-center rounded-2xl">
                   <Icon className="size-6" />
@@ -127,6 +133,8 @@ export default function Services() {
                   </span>
                 </div>
               </motion.button>
+              </TiltCard>
+              </motion.div>
             );
           })}
         </div>

@@ -126,6 +126,128 @@ export const generateLogo = action({
   },
 });
 
+/** Pulls the first JSON object out of a model reply, fences and prose included. */
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  const cleaned = text.replace(/```json/gi, "").replace(/```/g, "");
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1) return null;
+  try {
+    return JSON.parse(cleaned.slice(start, end + 1)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+function cleanStrings(value: unknown, limit: number, maxChars: number): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => v.trim().slice(0, maxChars))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+/**
+ * AI brand kit — naming, taglines and colour pairs for a studio.
+ *
+ * Returns only values the console can apply directly: uppercase-contrast hex
+ * pairs, short taglines, and logo words. Anything the model sends that does not
+ * validate is dropped rather than shipped into the theme.
+ */
+export const brandKit = action({
+  args: {
+    brief: v.string(),
+    /** Current colours, so the kit can suggest neighbours rather than random hits. */
+    currentPrimary: v.optional(v.string()),
+    currentBackground: v.optional(v.string()),
+  },
+  handler: async (ctx, { brief, currentPrimary, currentBackground }) => {
+    const role = await ctx.runQuery(api.users.myRole, {});
+    if (role !== "manager" && role !== "super_owner") {
+      throw new Error("Unauthorized: only studio admins can build a brand kit.");
+    }
+
+    const prompt = [
+      "You are a senior brand designer. Return STRICT JSON only, no prose, matching exactly:",
+      '{"taglines":["..."],"palettes":[{"name":"...","description":"...","primary":"#RRGGBB","background":"#RRGGBB"}],"brandWords":["..."]}',
+      `The brand: ${brief.trim().slice(0, 500) || "a small design studio"}.`,
+      currentPrimary && currentBackground
+        ? `Its current palette is ${currentPrimary} on ${currentBackground}.`
+        : "",
+      "Give 4 palettes, 4 taglines (max 6 words each) and 4 logo words (one or two words).",
+      "Every palette is a primary (accent ink) and a background (paper). Primary must be dark or saturated enough to read as text on a light background, and background must be a light, warm, low-glare paper tone — never both dark.",
+      "Keep names and descriptions premium and specific, e.g. 'Ink & Linen' — 'deep pine on unbleached paper'.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const geminiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    let raw = "";
+    if (geminiKey) {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.9, responseMimeType: "application/json" },
+          }),
+        },
+      );
+      if (res.ok) {
+        const payload = (await res.json()) as {
+          candidates?: { content?: { parts?: { text?: string }[] } }[];
+        };
+        raw = payload.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      } else {
+        console.warn("[Eden/AI] brand kit via Gemini failed:", res.status);
+      }
+    }
+
+    if (!raw) {
+      // Fallback: the platform gateway the assistant already uses.
+      const completion = await vly.ai.completion({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.9,
+        maxTokens: 700,
+      });
+      if (!completion.success || !completion.data) {
+        throw new Error(completion.error || "The brand kit could not be built right now.");
+      }
+      raw = completion.data.choices?.[0]?.message?.content ?? "";
+    }
+
+    const parsed = parseJsonObject(raw);
+    if (!parsed) {
+      throw new Error("The model returned something unreadable. Please try again.");
+    }
+
+    const palettes = Array.isArray(parsed.palettes)
+      ? parsed.palettes
+          .filter((p): p is Record<string, unknown> => Boolean(p) && typeof p === "object")
+          .map((p) => ({
+            name: String(p.name ?? "").trim().slice(0, 40),
+            description: String(p.description ?? "").trim().slice(0, 90),
+            primary: String(p.primary ?? ""),
+            background: String(p.background ?? ""),
+          }))
+          .filter((p) => HEX.test(p.primary) && HEX.test(p.background) && p.name)
+          .slice(0, 4)
+      : [];
+
+    return {
+      palettes,
+      taglines: cleanStrings(parsed.taglines, 4, 60),
+      brandWords: cleanStrings(parsed.brandWords, 4, 28),
+    };
+  },
+});
+
 export const assistantReply = action({
   args: {
     history: v.array(

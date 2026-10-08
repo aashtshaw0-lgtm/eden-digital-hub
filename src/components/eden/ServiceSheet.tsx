@@ -1,5 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { useCart, type CartItem } from "@/context/CartProvider";
+import { useContent } from "@/context/ContentProvider";
 import { useAuth } from "@/hooks/use-auth";
 import { inr } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -64,6 +65,7 @@ export function ServiceSheet({
   const [tier, setTier] = useState<Tier | null>(null);
   const navigate = useNavigate();
   const { addItem } = useCart();
+  const { t } = useContent();
 
   const close = () => {
     onOpenChange(false);
@@ -115,7 +117,7 @@ export function ServiceSheet({
             <header className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-5">
               <div>
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  {tier ? "Intake · tell us everything" : "Choose your tier"}
+                  {tier ? t("sheet.intakeHeading") : t("sheet.chooseHeading")}
                 </p>
                 <h2 className="font-display mt-1 text-2xl font-semibold">
                   {service.name}
@@ -159,7 +161,7 @@ export function ServiceSheet({
                       onClick={() => setTier(null)}
                       className="mb-5 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
                     >
-                      <ArrowLeft className="size-3.5" /> Back to tiers
+                      <ArrowLeft className="size-3.5" /> {t("sheet.backToTiers")}
                     </button>
                     {service.category === "design" && (
                       <DesignForm tier={tier} onComplete={handleComplete} />
@@ -242,9 +244,12 @@ const inputCls =
 
 function ContactFields<T extends FieldValues>({ form }: { form: UseFormReturn<T> }) {
   const errors = form.formState.errors as Record<string, { message?: string }>;
+  const { t } = useContent();
   return (
     <section className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contact</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {t("sheet.contact")}
+      </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Your name" error={errors.clientName?.message}>
           <input {...form.register("clientName" as Path<T>)} className={inputCls} placeholder="Aarav Sharma" />
@@ -276,6 +281,7 @@ function DesignForm({ tier, onComplete }: { tier: Tier; onComplete: (r: Record<s
   });
   const { register, formState, handleSubmit, watch } = form;
   const { isAuthenticated } = useAuth();
+  const { t } = useContent();
   const uploadUrl = useMutation(api.orders.generateUploadUrl);
   const [files, setFiles] = useState<{ name: string; size: number; type: string; status: "uploading" | "done" | "error"; storageId?: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -326,7 +332,9 @@ function DesignForm({ tier, onComplete }: { tier: Tier; onComplete: (r: Record<s
       </section>
 
       <section className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">References (optional)</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("sheet.references")}
+        </p>
         <button
           type="button"
           disabled={!isAuthenticated}
@@ -380,11 +388,14 @@ function EventsForm({ tier, onComplete }: { tier: Tier; onComplete: (r: Record<s
     defaultValues: { eventDate: "", venue: "", audienceSize: undefined, notes: "", clientName: "", clientEmail: "", clientWhatsapp: "" } as unknown as EventsValues,
   });
   const { register, formState, handleSubmit } = form;
+  const { t } = useContent();
 
   return (
     <form onSubmit={handleSubmit((v) => onComplete({ ...v }))} className="space-y-6">
       <section className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Event details</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("sheet.eventDetails")}
+        </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Event date" error={formState.errors.eventDate?.message}>
             <input type="date" {...register("eventDate")} className={inputCls} />
@@ -432,10 +443,13 @@ function ManagementForm({ tier, onComplete }: { tier: Tier; onComplete: (r: Reco
     setValue("platforms", next, { shouldValidate: true });
   };
 
+  const { t } = useContent();
   return (
     <form onSubmit={handleSubmit((v) => onComplete({ ...v }))} className="space-y-6">
       <section className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Channels</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("sheet.channels")}
+        </p>
         <div className="flex flex-wrap gap-2">
           {PLATFORMS.map((p) => (
             <button
