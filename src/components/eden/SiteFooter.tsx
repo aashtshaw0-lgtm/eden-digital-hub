@@ -1,8 +1,8 @@
 import { useSettings } from "@/context/SettingsProvider";
 import { OPEN_COOKIE_CONSENT_EVENT } from "@/components/eden/CookieConsent";
-import { EdenWordmark } from "@/components/eden/EdenWordmark";
 import { Instagram, Linkedin, Link2, Twitter } from "lucide-react";
 import { Link } from "react-router";
+import { SiteLogo } from "@/components/eden/SiteLogo";
 
 export function SiteFooter() {
   const { socialLinks } = useSettings();
@@ -18,7 +18,7 @@ export function SiteFooter() {
     <footer className="mt-20 border-t border-border/70 px-4 py-10 sm:px-6">
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-6 sm:flex-row">
         <Link to="/" className="flex flex-col items-center gap-1 sm:items-start">
-          <EdenWordmark className="w-32" />
+          <SiteLogo variant="light" className="w-32" />
           <p className="text-xs text-muted-foreground">Digital design &amp; management</p>
         </Link>
 

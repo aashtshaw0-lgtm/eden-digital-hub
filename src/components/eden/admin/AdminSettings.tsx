@@ -131,19 +131,25 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
   const setLogoImage = useMutation(api.settings.setLogoImage);
   const clearLogo = useMutation(api.settings.clearLogo);
   const setLogoDarkImage = useMutation(api.settings.setLogoDarkImage);
-  const clearLogoDark = useMutation(api.settings.clearLogoDark);
-  const [logoDarkFile, setLogoDarkFile] = useState<File | null>(null);
+  const clearLogoDark = useMutation(api.settings.clearLogoDark);    const [logoDarkFile, setLogoDarkFile] = useState<File | null>(null);
 
   // Logo mode: "image" (uploaded image) vs "text" (brand word mark).
-  const [logoMode, setLogoMode] = useState<"image" | "text">("image");
+  const [logoMode, setLogoMode] = useState<"image" | "text">(
+    settings.logoUrl ? "image" : "text",
+  );
+
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoDarkBusy, setLogoDarkBusy] = useState(false);
   const [removeLogoBusy, setRemoveLogoBusy] = useState(false);
   const [removeLogoDarkBusy, setRemoveLogoDarkBusy] = useState(false);
   const [brandWord, setBrandWord] = useState(settings.brandWord ?? "");
   const [brandTagline, setBrandTagline] = useState(settings.brandTagline ?? "");
-  const [logoLightColor, setLogoLightColor] = useState(settings.logoLightColor ?? "#14110f");
-  const [logoDarkColor, setLogoDarkColor] = useState(settings.logoDarkColor ?? "#ffffff");
+  const [logoLightColor, setLogoLightColor] = useState(
+    settings.logoLightColor ?? "#14110f",
+  );
+  const [logoDarkColor, setLogoDarkColor] = useState(
+    settings.logoDarkColor ?? "#ffffff",
+  );
 
   const [primaryColor, setPrimaryColor] = useState(settings.primaryColor);
   const [backgroundColor, setBackgroundColor] = useState(settings.backgroundColor);
@@ -190,6 +196,12 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (settings.logoUrl && logoMode === "text") {
+      setLogoMode("image");
+    }
+  }, [settings.logoUrl, logoMode]);
 
   const uploadQr = async (file: File | undefined | null) => {
     if (!file) return;
@@ -343,21 +355,20 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
                 </span>
               )}
             </div>
-            <div className="flex flex-col gap-2">
-              <button
+            <div className="flex flex-col gap-2">                  <button
                 onClick={() => logoFile ? uploadLogo(logoFile) : logoRef.current?.click()}
-                disabled={qrBusy}
+                disabled={logoBusy}
                 className="clay-inset flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground"
               >
-                {qrBusy ? <Loader2 className="size-4 animate-spin" /> : <CloudUpload className="size-4 text-primary" />}
+                {logoBusy ? <Loader2 className="size-4 animate-spin" /> : <CloudUpload className="size-4 text-primary" />}
                 {logoFile ? "Replace existing logo" : "Upload logo"}
               </button>
               <button
                 onClick={removeLogo}
-                disabled={!settings.logoUrl || qrBusy}
+                disabled={!settings.logoUrl || removeLogoBusy}
                 className="flex items-center gap-2 rounded-xl border border-red-200/70 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
               >
-                <Trash2 className="size-4" />
+                {removeLogoBusy ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
                 Remove logo
               </button>
               <input
@@ -397,18 +408,18 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => logoDarkFile ? uploadLogoDark(logoDarkFile) : logoDarkRef.current?.click()}
-                disabled={qrBusy}
+                disabled={logoDarkBusy}
                 className="clay-inset flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground"
               >
-                {qrBusy ? <Loader2 className="size-4 animate-spin" /> : <CloudUpload className="size-4 text-primary" />}
+                {logoDarkBusy ? <Loader2 className="size-4 animate-spin" /> : <CloudUpload className="size-4 text-primary" />}
                 {logoDarkFile ? "Replace dark logo" : "Upload dark logo"}
               </button>
               <button
                 onClick={removeLogoDark}
-                disabled={!settings.logoDarkUrl || qrBusy}
-                className="flex items-center gap-2 rounded-xl border border-red-200/70 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                disabled={!settings.logoDarkUrl || removeLogoDarkBusy}
+                className="flex items-center gap-2 rounded-xl border border-red-200/70 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-400 dark:text-red-300 dark:hover:bg-red-900/20"
               >
-                <Trash2 className="size-4" />
+                {removeLogoDarkBusy ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
                 Remove dark logo
               </button>
               <input
