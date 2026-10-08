@@ -32,7 +32,7 @@ export const BRAND_FIELDS: ContentField[] = [
   {
     key: "brand.name",
     label: "Company / studio name",
-    default: "Eden",
+    default: "Studio",
     hint: "Drives the browser tab, footer, legal pages and everywhere the studio is named.",
   },
   { key: "brand.tagline", label: "Tagline", default: "Digital design & management" },
@@ -100,6 +100,9 @@ export const CONTENT_GROUPS: ContentGroup[] = [
         default: "Pick a service, pick a tier, brief us in one form.",
       },
       { key: "home.services.cta", label: "Services section link", default: "View all services" },
+      { key: "home.stat.1", label: "Stat 1 label", default: "Services on the shelf" },
+      { key: "home.stat.2", label: "Stat 2 label", default: "Pieces shipped" },
+      { key: "home.stat.3", label: "Stat 3 label", default: "Tiers per service" },
     ],
   },
   {
@@ -194,7 +197,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       {
         key: "chat.instant.name",
         label: "Instant option name",
-        default: "Eden Assistant (Instant)",
+        default: "Assistant (Instant)",
       },
       {
         key: "chat.instant.desc",
@@ -216,9 +219,9 @@ export const CONTENT_GROUPS: ContentGroup[] = [
         label: "Assistant greeting",
         type: "textarea",
         default:
-          "Hi, I'm Eden's assistant 🌿 Ask me about our services, tiers or pricing — I know the full menu.",
+          "Hi, I'm the studio assistant 🌿 Ask me about our services, tiers or pricing — I know the full menu.",
       },
-      { key: "chat.assistant.title", label: "Assistant panel title", default: "Eden Assistant" },
+      { key: "chat.assistant.title", label: "Assistant panel title", default: "Assistant" },
       {
         key: "chat.assistant.subtitle",
         label: "Assistant panel subtitle",

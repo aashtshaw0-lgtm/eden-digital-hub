@@ -9,6 +9,7 @@ import { AdminCoupons } from "@/components/eden/admin/AdminCoupons";
 import { AdminServices } from "@/components/eden/admin/AdminServices";
 import { AdminProducts } from "@/components/eden/admin/AdminProducts";
 import { AdminRoles } from "@/components/eden/admin/AdminRoles";
+import { useContent } from "@/context/ContentProvider";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/convex/_generated/api";
 import { useSeo } from "@/lib/seo";
@@ -31,7 +32,8 @@ const TABS: { key: string; label: string; superOnly?: boolean }[] = [
 ];
 
 export default function Admin() {
-  useSeo({ title: "Eden Console | Eden - Digital Design & Management" });
+  const { t, brandName } = useContent();
+  useSeo({ title: `${brandName} console | ${t("nav.console")}`, noIndex: true });
   const { user } = useAuth();
   const role = useQuery(api.users.myRole);
   const [tab, setTab] = useState<string>("orders");
@@ -47,7 +49,7 @@ export default function Admin() {
           Invisible back office
         </p>
         <h1 className="font-display mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
-          Eden Console
+          {brandName} console
         </h1>
       </header>
 

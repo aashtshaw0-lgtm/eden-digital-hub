@@ -11,6 +11,7 @@ import { Reveal } from "@/components/eden/Reveal";
 import { FloatingOrb } from "@/components/eden/FloatingOrb";
 import {
   AuroraBackground,
+  CountUp,
   Magnetic,
   Marquee,
   ShimmerText,
@@ -22,7 +23,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { Link } from "react-router";
 
-const ROTATING_FALLBACK = ["with Eden", "by hand", "for keeps", "that converts"];
+// Fallback accent words. The studio's own name is substituted at render time,
+// so the headline never hardcodes a brand that isn't yours.
+const ROTATING_FALLBACK = ["by hand", "for keeps", "that converts"];
 
 export default function Landing() {
   const { t, brandName } = useContent();
@@ -55,7 +58,10 @@ export default function Landing() {
   const [wordIndex, setWordIndex] = useState(0);
   const [broken, setBroken] = useState<Set<string>>(new Set());
 
-  const words = heroAccentWords.length > 0 ? heroAccentWords : ROTATING_FALLBACK;
+  const words =
+    heroAccentWords.length > 0
+      ? heroAccentWords
+      : [`with ${brandName}`, ...ROTATING_FALLBACK];
 
   useEffect(() => {
     if (heroMode !== "rotating" || words.length < 2) return;
@@ -180,6 +186,32 @@ export default function Landing() {
             </motion.span>
           ))}
         </motion.div>
+
+        {/* Live numbers. All three are read from the catalogue, so the hero can
+            never claim more than the studio actually sells. */}
+        <div className="mt-12 grid w-full max-w-xl grid-cols-3 gap-3">
+          {[
+            { key: "home.stat.1", value: services?.length ?? 0 },
+            { key: "home.stat.2", value: portfolio?.length ?? 0 },
+            { key: "home.stat.3", value: 3 },
+          ].map((stat, i) => (
+            <motion.div
+              key={stat.key}
+              initial={{ opacity: 0, y: 16, rotateX: 12 }}
+              animate={{ opacity: 1, y: 0, rotateX: 0 }}
+              transition={{ delay: 0.6 + i * 0.08, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="clay-sm rounded-2xl px-3 py-4 text-center"
+              style={{ transformPerspective: 700 }}
+            >
+              <p className="font-display text-2xl font-semibold tabular-nums text-primary sm:text-3xl">
+                <CountUp to={stat.value} />
+              </p>
+              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                {t(stat.key)}
+              </p>
+            </motion.div>
+          ))}
+        </div>
       </section>
 
       {/* ── Service ticker ─────────────────────────────────

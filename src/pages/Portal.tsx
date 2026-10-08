@@ -1,5 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/convex/_generated/api";
+import { AuroraBackground } from "@/components/eden/motion";
 import { useContent } from "@/context/ContentProvider";
 import { ProofRequest } from "@/components/eden/ProofRequest";
 import { formatDate, inr } from "@/lib/format";
@@ -38,8 +39,9 @@ export default function Portal() {
   }, [syncRole]);
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <main className="relative mx-auto w-full max-w-5xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
+      <AuroraBackground className="opacity-60" />
+      <header className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">{t("portal.welcome")}</p>
           <h1 className="font-display mt-1 text-3xl font-semibold tracking-tight">

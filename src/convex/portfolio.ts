@@ -19,7 +19,7 @@ export const list = query({
     return await Promise.all(
       items.map(async (item) => ({
         _id: item._id,
-        title: item.title ?? "Eden work",
+        title: item.title ?? "Studio work",
         url:
           item.url ??
           (item.storageId ? ((await ctx.storage.getUrl(item.storageId)) ?? undefined) : undefined),

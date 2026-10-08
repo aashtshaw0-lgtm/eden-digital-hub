@@ -98,7 +98,7 @@ export function useSeo(opts: {
 /**
  * Basic organization-level structured data (used on homepage).
  */
-export function getOrganizationSchema(brandName = "Eden") {
+export function getOrganizationSchema(brandName = "Studio") {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -124,7 +124,7 @@ export function getOrganizationSchema(brandName = "Eden") {
  * WebSite-level structured data with search action (helps Google understand
  * the site's search capability).
  */
-export function getWebSiteSchema(brandName = "Eden") {
+export function getWebSiteSchema(brandName = "Studio") {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -148,7 +148,7 @@ export function getServiceSchema(
   serviceName: string,
   description: string,
   priceRange: string,
-  brandName = "Eden",
+  brandName = "Studio",
 ) {
   return {
     "@context": "https://schema.org",

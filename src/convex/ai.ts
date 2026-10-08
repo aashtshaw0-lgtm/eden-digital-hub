@@ -64,47 +64,83 @@ export const generateLogo = action({
         : "Built for a light background: rich, confident marks on a plain white background.";
 
     const prompt = [
-      `Design a logo for: ${cleanedBrief}.`,
+      `Design an original logo for: ${cleanedBrief}.`,
       `Style: ${look}.`,
       palette,
       "It is a studio wordmark or emblem used at about 240px wide in a website header and a footer.",
+      "Original artwork only: do not copy, trace, redraw or imitate any existing brand, logo, trademark, mascot, character or copyrighted design, and do not reproduce a recognisable mark from another company.",
       "Flat vector illustration, crisp clean edges, balanced composition, high contrast, no photographic detail, no mockup, no frame, no drop shadow, no watermark, no extra text beyond the brand name.",
       "Centered with generous breathing room on a solid white background.",
     ].join(" ");
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseModalities: ["IMAGE"] },
-        }),
-      },
-    );
+    // Model names move around between API versions; try the current one first
+    // and fall back rather than failing the whole feature on a rename.
+    const MODELS = [
+      "gemini-2.5-flash-image",
+      "gemini-2.5-flash-image-preview",
+      "gemini-2.0-flash-preview-image-generation",
+    ];
 
-    if (!res.ok) {
-      const detail = await res.text();
-      console.warn("[Eden/AI] logo generation failed:", res.status, detail.slice(0, 500));
-      throw new Error(
-        res.status === 400 || res.status === 403
-          ? "The image model rejected that brief. Try a shorter description or a different style."
-          : "Logo generation is unavailable right now. Please try again in a moment.",
+    let base64 = "";
+    let mimeType = "image/png";
+    let lastStatus = 0;
+    let lastDetail = "";
+
+    for (const model of MODELS) {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseModalities: ["IMAGE"] },
+          }),
+        },
       );
+
+      if (!res.ok) {
+        lastStatus = res.status;
+        lastDetail = (await res.text()).slice(0, 300);
+        console.warn(`[Studio/AI] logo model ${model} failed:`, res.status, lastDetail);
+        // A genuinely rejected prompt fails the same way on every model, so it
+        // is not worth three round trips to be told the same thing.
+        const modelMissing = /not found|not supported|unsupported|does not exist/i.test(lastDetail);
+        if (res.status === 400 && !modelMissing) break;
+        continue;
+      }
+
+      const payload = (await res.json()) as {
+        candidates?: {
+          content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] };
+        }[];
+      };
+      const part = payload.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
+      if (part?.inlineData?.data) {
+        base64 = part.inlineData.data;
+        mimeType = part.inlineData.mimeType ?? "image/png";
+        break;
+      }
+      lastStatus = res.status;
+      lastDetail = "the model replied without an image";
     }
 
-    const payload = (await res.json()) as {
-      candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] } }[];
-    };
-    const part = payload.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-    const base64 = part?.inlineData?.data;
-    const mimeType = part?.inlineData?.mimeType ?? "image/png";
     if (!base64) {
-      throw new Error("The image model did not return a picture. Try rephrasing the brief.");
+      const hint =
+        lastStatus === 429
+          ? "This key is rate-limited or out of image quota — check the Google AI billing and quota for that key, then try again."
+          : lastStatus === 401 || lastStatus === 403
+            ? "This key is not allowed to use the image model. Enable the Generative Language API and use a key with image generation (billing on)."
+            : lastStatus === 404
+              ? "The image model is not available to this key. Enable Gemini image generation for the key, then try again."
+              : lastStatus === 400
+                ? "The image model rejected that brief. Try a shorter description or a different style."
+                : `Logo generation failed with HTTP ${lastStatus || "no response"}.`;
+      console.error("[Studio/AI] logo generation gave up:", lastStatus, lastDetail);
+      throw new Error(`${hint} (${lastDetail || "no detail"})`);
     }
 
     const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
@@ -204,7 +240,7 @@ export const brandKit = action({
         };
         raw = payload.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       } else {
-        console.warn("[Eden/AI] brand kit via Gemini failed:", res.status);
+        console.warn("[Studio/AI] brand kit via Gemini failed:", res.status);
       }
     }
 
@@ -272,8 +308,13 @@ export const assistantReply = action({
       )
       .join("\n");
 
+    // The assistant speaks as the studio, so it uses the name set in the copy
+    // deck rather than a hardcoded one.
+    const copy = await ctx.runQuery(api.content.list, {});
+    const brandName = copy["brand.name"]?.trim() || "the studio";
+
     const systemPrompt = [
-      "You are Eden's senior sales assistant. Eden is a digital design & management studio selling one-off creative products (logos, posters, commercial designs, YouTube thumbnails, event banners) and ongoing services (event planning, social media management).",
+      `You are ${brandName}'s senior sales assistant. ${brandName} is a digital design & management studio selling one-off creative products (logos, posters, commercial designs, YouTube thumbnails, event banners) and ongoing services (event planning, social media management).`,
       "Your job: qualify the visitor's needs, recommend the right service and tier, quote exact prices from the list below, and guide them to pick a tier on the Services page, fill the intake form, and complete checkout (manual UPI payment).",
       "Rules: be warm, concise and persuasive (max ~120 words). Never invent discounts, prices or services that are not in the list. For custom or bulk requests, invite them to click 'Talk to Manager' for a human quote. If asked about delivery, use the deliverable timelines on the tiers. Do not ask for payment details; payments happen at checkout via UPI.",
       `Current service & price list (INR):\n${priceList}`,
@@ -323,7 +364,7 @@ export const assistantReply = action({
       } catch (geminiErr) {
         // If Gemini fails (e.g., model deprecation, quota), fall through to the
         // vly gateway instead of surfacing a raw error to the customer.
-        console.warn("[Eden/AI] Gemini failed, using fallback:", geminiErr);
+        console.warn("[Studio/AI] Gemini failed, using fallback:", geminiErr);
       }
     }
 

@@ -16,17 +16,24 @@ export const get = query({
     const qrImageUrl = row?.qrStorageId
       ? ((await ctx.storage.getUrl(row.qrStorageId)) ?? undefined)
       : undefined;
+    // The studio name lives in the copy deck, so the hero's fallback accent
+    // words follow it: rename the company and the headline follows.
+    const brandRow = await ctx.db
+      .query("siteContent")
+      .withIndex("by_key", (q) => q.eq("key", "brand.name"))
+      .first();
+    const brandName = brandRow?.value?.trim() || "the studio";
     return {
       primaryColor: row?.primaryColor ?? DEFAULTS.primaryColor,
       backgroundColor: row?.backgroundColor ?? DEFAULTS.backgroundColor,
       upiId: row?.upiId ?? DEFAULTS.upiId,
       heroLead: row?.heroLead ?? "Elevate your brand",
       heroMode: row?.heroMode ?? "rotating",
-      heroAccent: row?.heroAccent ?? "with Eden",
+      heroAccent: row?.heroAccent ?? `with ${brandName}`,
       heroAccentWords:
         row?.heroAccentWords?.length
           ? row.heroAccentWords
-          : ["with Eden", "by hand", "for keeps", "that converts"],
+          : [`with ${brandName}`, "by hand", "for keeps", "that converts"],
       qrImageUrl,
       logoUrl: row?.logoStorageId ? ((await ctx.storage.getUrl(row.logoStorageId)) ?? undefined) : undefined,
       logoDarkUrl: row?.logoDarkStorageId

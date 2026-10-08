@@ -1,7 +1,7 @@
+import { useContent } from "@/context/ContentProvider";
 import { useSettings } from "@/context/SettingsProvider";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
-import { EdenWordmark } from "./EdenWordmark";
 
 const WORD_SIZE = {
   sm: "text-lg sm:text-xl",
@@ -18,10 +18,14 @@ const TAG_SIZE = {
 /**
  * The studio's logo, wherever it appears.
  *
- * Three sources, in the order the studio chose them in the console:
+ * Two sources, no built-in fallback mark:
  *  1. the uploaded image (`logoMode: "image"`, or unset with an image present)
- *  2. the wordmark drawn from `brandWord` / `brandTagline` (`logoMode: "text"`)
- *  3. the built-in Eden mark, so the header is never empty
+ *  2. the wordmark — `brandWord` when set, otherwise the studio's own name
+ *     (`brand.name`), so the header always carries *your* words and never a
+ *     hardcoded one.
+ *
+ * When neither exists the component renders nothing rather than inventing a
+ * mark for the studio.
  *
  * A consumer can pin the surface with `variant`; without it the component
  * follows the document's dark-mode class, so the text logo recolours itself.
@@ -31,14 +35,13 @@ export function SiteLogo({
   variant,
   size = "md",
   imgProps = {},
-  fallbackProps = {},
 }: {
   className?: string;
   variant?: "light" | "dark";
   size?: keyof typeof WORD_SIZE;
   imgProps?: React.ImgHTMLAttributes<HTMLImageElement>;
-  fallbackProps?: Parameters<typeof EdenWordmark>[0];
 }) {
+  const { brandName } = useContent();
   const {
     logoUrl,
     logoDarkUrl,
@@ -71,7 +74,9 @@ export function SiteLogo({
     return () => document.removeEventListener("color-scheme-change", onChange);
   }, [variant]);
 
-  const hasWord = Boolean(brandWord && brandWord.trim());
+  // The studio's own word — the explicit logo word wins, otherwise the name.
+  const word = (brandWord ?? "").trim() || brandName.trim();
+  const hasWord = word.length > 0;
   const onDark = surface === "dark";
   const imageSrc = (onDark && logoDarkUrl) || logoUrl || null;
 
@@ -100,7 +105,7 @@ export function SiteLogo({
         )}
         style={{ color: (onDark ? logoDarkColor : logoLightColor) || undefined }}
       >
-        <span className={cn("font-semibold", WORD_SIZE[size])}>{brandWord}</span>
+        <span className={cn("font-semibold", WORD_SIZE[size])}>{word}</span>
         {brandTagline && (
           <span
             className={cn(
@@ -115,6 +120,6 @@ export function SiteLogo({
     );
   }
 
-  // Last resort: the built-in mark.
-  return <EdenWordmark className={cn(undefined, className)} {...fallbackProps} />;
+  // Nothing configured yet — render nothing rather than a placeholder mark.
+  return null;
 }

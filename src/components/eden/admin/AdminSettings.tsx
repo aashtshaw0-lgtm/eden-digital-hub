@@ -14,7 +14,7 @@ const inputCls =
 // Preset colour combinations for quick switching (two-color themes)
 const COLOR_THEMES = [
   {
-    name: "Eden Original",
+    name: "Studio Original",
     primary: "#2f6b4f",
     background: "#f6f2ea",
     description: "Warm paper & botanical ink-green",
@@ -68,8 +68,8 @@ const COLOR_THEMES = [
 // is what re-themes the whole site.
 const COLOR_COMBOS = [
   {
-    id: "eden-original",
-    name: "Eden Original",
+    id: "studio-original",
+    name: "Studio Original",
     description: "Warm paper & botanical ink-green",
     primary: "#2f6b4f",
     background: "#f6f2ea",
@@ -120,7 +120,7 @@ function WordmarkPreview({
 }) {
   if (!word.trim()) {
     return (
-      <span className="text-center text-[11px] text-muted-foreground">Built-in studio mark</span>
+      <span className="text-center text-[11px] text-muted-foreground">Your studio name</span>
     );
   }
   return (
@@ -312,7 +312,7 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
     setRemoveLogoBusy(true);
     try {
       await clearLogo();
-      toast.success("Light logo removed — the text or Eden wordmark is back.");
+      toast.success("Light logo removed — your wordmark is back.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to remove light logo.");
     } finally {
@@ -620,8 +620,8 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
               </div>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Leave the word empty to fall back to the built-in studio mark. Click “Save settings”
-              to publish it.
+              Leave the word empty to use the studio name from
+              <span className="font-medium"> Words &amp; copy</span>. Click “Save settings” to publish it.
             </p>
           </div>
           )}

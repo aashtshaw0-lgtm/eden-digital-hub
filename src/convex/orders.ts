@@ -985,7 +985,7 @@ async function analyzeWithGemini(
   const model = genAI.getGenerativeModel({
     model: GEMINI_MODEL,
     systemInstruction: [
-      "You are the payment-proof auditor for Eden, a design studio.",
+      "You are the payment-proof auditor for a design studio.",
       "Read the uploaded screenshot and extract the payer proof details.",
       "The amount actually debited is the most important field. Read it even if",
       "it is small or does not match what the client was supposed to pay.",
@@ -1162,11 +1162,11 @@ async function analyzeWithGemini(
   // What matters is whether the money was sent to *this* studio.
   if (payeeHandle && !studioUpiId) {
     stillNeeded.push(
-      `Paid to “${payeeHandle}” but Eden has no UPI ID configured yet — set one under Website settings before approving.`,
+      `Paid to “${payeeHandle}” but the studio has no UPI ID configured yet — set one under Website settings before approving.`,
     );
   } else if (payeeHandle && studioUpiId && !sameUpiHandle(payeeHandle, studioUpiId)) {
     stillNeeded.push(
-      `Paid to “${payeeHandle}” instead of the studio UPI ID “${studioUpiId}” — the money has not reached Eden.`,
+      `Paid to “${payeeHandle}” instead of the studio UPI ID “${studioUpiId}” — the money has not reached the studio.`,
     );
   } else if (!payeeHandle && channel === "unknown") {
     stillNeeded.push(

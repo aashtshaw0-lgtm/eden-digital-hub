@@ -57,7 +57,7 @@ const schema = defineSchema(
       heroAccentWords: v.optional(v.array(v.string())),
       upiId: v.optional(v.string()),
       qrStorageId: v.optional(v.id("_storage")),
-      /** Site logo (PNG/SVG/AVIF/WebP). Empty means the built Eden wordmark is used. */
+      /** Site logo image (PNG/SVG/AVIF/WebP). Empty means the wordmark is used. */
       logoStorageId: v.optional(v.id("_storage")),
       /** Dark-mode variant of the site logo (optional). When set, shown on dark surfaces. */
       logoDarkStorageId: v.optional(v.id("_storage")),

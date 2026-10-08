@@ -1,3 +1,4 @@
+import { AuroraBackground } from "@/components/eden/motion";
 import { useContent } from "@/context/ContentProvider";
 import { useSeo } from "@/lib/seo";
 import { cn } from "@/lib/utils";
@@ -47,8 +48,9 @@ export default function Legal() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
-      <header className="text-center">
+    <main className="relative mx-auto w-full max-w-3xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
+      <AuroraBackground className="opacity-50" />
+      <header className="relative text-center">
         <p className="text-sm text-muted-foreground">{t("legal.eyebrow")}</p>
         <h1 className="font-display mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
           {t("legal.title")}
@@ -128,6 +130,7 @@ function Bullets({ items }: { items: string[] }) {
 /* ── Privacy Policy ──────────────────────────────────────── */
 
 function Privacy() {
+  const { brandName } = useContent();
   return (
     <>
       <Section title="What we collect">
@@ -155,9 +158,10 @@ function Privacy() {
       </Section>
       <Section title="Where it lives">
         <p>
-          Eden runs on managed cloud infrastructure (Convex for the database, files and
+          {brandName} runs on managed cloud infrastructure (Convex for the database, files and
           authentication). Your data is stored there with encryption in transit and at rest. Only
-          Eden team members with an admin role can view order details, and only to do the work.
+          {brandName} team members with an admin role can view order details, and only to do the
+          work.
         </p>
       </Section>
       <Section title="Your choices">
@@ -178,11 +182,13 @@ function Privacy() {
 /* ── Terms & Conditions ──────────────────────────────────── */
 
 function Terms() {
+  const { brandName } = useContent();
   return (
     <>
       <Section title="The service">
         <p>
-          Eden is a design and management studio. Every service on the storefront (logos, posters,
+          {brandName} is a design and management studio. Every service on the storefront (logos,
+          posters,
           commercial design, thumbnails, banners, event planning, social media management) is sold
           in three transparent tiers — Basic, Pro and Premium — with the deliverables listed on
           each tier before you pay.
@@ -201,8 +207,8 @@ function Terms() {
         <Bullets
           items={[
             "On full payment, the final deliverables for your order are yours to use for your business.",
-            "Eden retains the right to display delivered work in our portfolio unless you ask us in writing not to (just say so in the brief or over chat).",
-            "You confirm that any material you upload (logos, photos, copy) is yours to share, and Eden isn't liable for claims arising from materials you provided.",
+            `${brandName} retains the right to display delivered work in our portfolio unless you ask us in writing not to (just say so in the brief or over chat).`,
+            `You confirm that any material you upload (logos, photos, copy) is yours to share, and ${brandName} isn't liable for claims arising from materials you provided.`,
           ]}
         />
       </Section>
@@ -215,7 +221,8 @@ function Terms() {
       </Section>
       <Section title="Liability">
         <p>
-          Eden's total liability for any order is limited to the amount paid for that order. We
+          {brandName}'s total liability for any order is limited to the amount paid for that
+          order. We
           aren't liable for indirect losses (lost profits, missed events) beyond re-delivering or
           refunding the affected work as covered in the Refund Policy.
         </p>
@@ -233,10 +240,13 @@ function Terms() {
 /* ── Cookie Policy ───────────────────────────────────────── */
 
 function Cookies() {
+  const { brandName } = useContent();
   return (
     <>
       <Section title="Cookies & local storage we use">
-        <p>Eden is deliberately light on tracking. We use only what keeps the site working:</p>
+        <p>
+          {brandName} is deliberately light on tracking. We use only what keeps the site working:
+        </p>
         <Bullets
           items={[
             "Essential — your sign-in session, so you stay logged in securely.",

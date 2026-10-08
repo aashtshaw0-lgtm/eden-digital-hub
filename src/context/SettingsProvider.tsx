@@ -34,8 +34,8 @@ const DEFAULTS: EdenSettings = {
   upiId: "eden.payments@upi",
   heroLead: "Elevate your brand",
   heroMode: "rotating" as const,
-  heroAccent: "with Eden",
-  heroAccentWords: ["with Eden", "by hand", "for keeps", "that converts"],
+  heroAccent: "by hand",
+  heroAccentWords: ["by hand", "for keeps", "that converts"],
   socialLinks: { instagram: "", twitter: "", behance: "", linkedin: "" },
 };
 
@@ -51,6 +51,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const primaryColor = settings?.primaryColor;
   const backgroundColor = settings?.backgroundColor;
+  const logoUrl = settings?.logoUrl;
 
   useEffect(() => {
     if (!primaryColor || !backgroundColor) return;
@@ -60,6 +61,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     root.style.setProperty("--primary-foreground", readableOn(primaryColor));
     root.style.setProperty("--background", backgroundColor);
   }, [primaryColor, backgroundColor]);
+
+  // The browser-tab icon follows the uploaded logo, so the mark in the tab is
+  // the studio's own — the shipped icon is only a placeholder.
+  useEffect(() => {
+    if (!logoUrl) return;
+    let link = document.head.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = logoUrl;
+  }, [logoUrl]);
 
   const value: EdenSettings = settings
     ? {

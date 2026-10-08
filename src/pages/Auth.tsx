@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/input-otp";
 
 import { useAuth } from "@/hooks/use-auth";
-import { EdenWordmark } from "@/components/eden/EdenWordmark";
+import { SiteLogo } from "@/components/eden/SiteLogo";
 import { ArrowRight, Loader2, Mail, UserX } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -114,10 +114,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
             <>
               <CardHeader className="text-center">
               <div className="flex justify-center">
-                    <EdenWordmark
-                      className="mb-2 mt-6 w-40 cursor-pointer"
-                      withTagline
-                    />
+                    <SiteLogo size="md" className="mb-2 mt-6 w-40 cursor-pointer" />
                   </div>
                 <CardTitle className="text-xl">Get Started</CardTitle>
                 <CardDescription>

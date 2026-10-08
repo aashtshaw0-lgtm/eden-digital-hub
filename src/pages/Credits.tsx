@@ -1,4 +1,5 @@
 import { api } from "@/convex/_generated/api";
+import { AuroraBackground, ShimmerText } from "@/components/eden/motion";
 import { useContent } from "@/context/ContentProvider";
 import { LEGENDARY_THRESHOLD, PREMIUM_THRESHOLD, tierMeta, tierMetaForTier } from "@/lib/credits";
 import type { CreditTierLabel } from "@/lib/credits";
@@ -24,6 +25,7 @@ export default function Credits() {
   return (
     <main className="relative mx-auto w-full max-w-5xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36 overflow-hidden">
       {/* Background ornament */}
+      <AuroraBackground className="opacity-70" />
       <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-primary/5 blur-3xl" />
       <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-accent/5 blur-3xl" />
 
@@ -41,7 +43,7 @@ export default function Credits() {
           transition={{ delay: 0.08 }}
           className="font-display mt-2 text-4xl font-semibold tracking-tight sm:text-5xl"
         >
-          {t("credits.title")}
+          <ShimmerText>{t("credits.title")}</ShimmerText>
         </motion.h1>
         <motion.p
           initial={{ opacity: 0, y: 12 }}
