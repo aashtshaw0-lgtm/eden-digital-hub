@@ -1,4 +1,5 @@
 import { useCart } from "@/context/CartProvider";
+import { useContent } from "@/context/ContentProvider";
 import { useSettings } from "@/context/SettingsProvider";
 import { api } from "@/convex/_generated/api";
 import { discountFor } from "@/convex/coupons";
@@ -38,10 +39,10 @@ function tipTierName(tip: number): string | null {
 }
 
 export default function Checkout() {
+  const { t } = useContent();
   useSeo({
-    title: `Checkout | Eden - Digital Design & Management`,
-    description:
-      "Pay by UPI for your Eden order — logos, posters, thumbnails, banners, event planning or social media management. Three transparent tiers, fast checkout.",
+    title: t("seo.checkout.title"),
+    description: t("seo.checkout.description"),
     canonical: "/checkout",
     noIndex: false,
   });
@@ -214,11 +215,10 @@ export default function Checkout() {
             <Check className="size-7" />
           </span>
           <h1 className="font-display mt-5 text-3xl font-semibold tracking-tight">
-            Order and proof received
+            {t("checkout.doneTitle")}
           </h1>
           <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
-            We've got your payment screenshot and UTR. The studio will confirm on WhatsApp — usually
-            within a few minutes.
+            {t("checkout.doneBody")}
           </p>
         </motion.div>
 
@@ -254,15 +254,15 @@ export default function Checkout() {
         <span className="tint flex size-14 items-center justify-center rounded-3xl">
           <QrCode className="size-7" />
         </span>
-        <h1 className="font-display mt-5 text-2xl font-semibold">Your cart is empty</h1>
+        <h1 className="font-display mt-5 text-2xl font-semibold">{t("checkout.emptyTitle")}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Pick a service and a tier — the brief takes two minutes.
+          {t("checkout.emptyBody")}
         </p>
         <Link
           to="/services"
           className="mt-6 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-md"
         >
-          Browse services
+          {t("checkout.emptyCta")}
         </Link>
       </main>
     );
@@ -270,10 +270,10 @@ export default function Checkout() {
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
-      <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Checkout</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Pay by UPI, confirm, and we start immediately.
-      </p>
+      <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+        {t("checkout.title")}
+      </h1>
+      <p className="mt-2 text-sm text-muted-foreground">{t("checkout.subtitle")}</p>
 
       <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_380px]">
         {/* Receipt */}
@@ -317,7 +317,7 @@ export default function Checkout() {
                 <HeartHandshake className="size-4" />
               </span>
               <div>
-                <h2 className="font-display text-base font-semibold">Add a tip</h2>
+                <h2 className="font-display text-base font-semibold">{t("checkout.tipHeading")}</h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   Optional — tips above ₹{PREMIUM_TIP_THRESHOLD} earn a premium credit,
                   ₹{LEGENDARY_TIP_THRESHOLD} and above earns a legendary one.
@@ -523,9 +523,9 @@ export default function Checkout() {
         {/* Payment */}
         <aside className="clay h-fit space-y-5 p-6">
           <div>
-            <h2 className="font-display text-lg font-semibold">Scan & pay</h2>
+            <h2 className="font-display text-lg font-semibold">{t("checkout.payHeading")}</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Any UPI app — GPay, PhonePe, Paytm.
+              {t("checkout.payBody")}
             </p>
           </div>
 

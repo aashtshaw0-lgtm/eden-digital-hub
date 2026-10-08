@@ -32,6 +32,7 @@ export const get = query({
       logoDarkUrl: row?.logoDarkStorageId
         ? ((await ctx.storage.getUrl(row.logoDarkStorageId)) ?? undefined)
         : undefined,
+      logoMode: row?.logoMode ?? undefined,
       brandWord: row?.brandWord ?? undefined,
       brandTagline: row?.brandTagline ?? undefined,
       logoLightColor: row?.logoLightColor ?? undefined,
@@ -63,6 +64,7 @@ export const update = mutation({
     heroAccentWords: v.optional(v.array(v.string())),
     logoStorageId: v.optional(v.id("_storage")),
     logoDarkStorageId: v.optional(v.id("_storage")),
+    logoMode: v.optional(v.union(v.literal("image"), v.literal("text"))),
     brandWord: v.optional(v.string()),
     brandTagline: v.optional(v.string()),
     logoLightColor: v.optional(v.string()),
@@ -92,6 +94,7 @@ export const update = mutation({
       ...(args.logoDarkStorageId !== undefined
         ? { logoDarkStorageId: args.logoDarkStorageId }
         : {}),
+      ...(args.logoMode !== undefined ? { logoMode: args.logoMode } : {}),
       ...(args.brandWord !== undefined ? { brandWord: args.brandWord } : {}),
       ...(args.brandTagline !== undefined ? { brandTagline: args.brandTagline } : {}),
       ...(args.logoLightColor !== undefined ? { logoLightColor: args.logoLightColor } : {}),

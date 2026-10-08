@@ -1,5 +1,6 @@
 import { ServiceSheet } from "@/components/eden/ServiceSheet";
 import { api } from "@/convex/_generated/api";
+import { useContent } from "@/context/ContentProvider";
 import { inr } from "@/lib/format";
 import { useSeo } from "@/lib/seo";
 import { serviceIcon } from "@/components/eden/serviceIcons";
@@ -12,13 +13,14 @@ import type { Doc } from "@/convex/_generated/dataModel";
 type Service = Doc<"services"> & { tiers: Doc<"serviceTiers">[] };
 
 const CATEGORIES = [
-  { key: "all", label: "All" },
-  { key: "design", label: "Design" },
-  { key: "events", label: "Events" },
-  { key: "management", label: "Management" },
+  { key: "all", labelKey: "services.cat.all" },
+  { key: "design", labelKey: "services.cat.design" },
+  { key: "events", labelKey: "services.cat.events" },
+  { key: "management", labelKey: "services.cat.management" },
 ] as const;
 
 export default function Services() {
+  const { t, brandName } = useContent();
   const services = useQuery(api.catalog.listPublic);
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]["key"]>("all");
   const [active, setActive] = useState<Service | null>(null);
@@ -29,9 +31,8 @@ export default function Services() {
   );
 
   useSeo({
-    title: `Services & Pricing | Eden - Digital Design & Management`,
-    description:
-      "Transparent three-tier pricing for logo design, posters, commercial design, thumbnails, event banners, event planning and social media management.",
+    title: t("seo.services.title"),
+    description: t("seo.services.description"),
     canonical: "/services",
     jsonLd:
       services === undefined
@@ -45,10 +46,10 @@ export default function Services() {
               item: {
                 "@type": "Service",
                 name: s.name,
-                description: s.tagline ?? `${s.name} by Eden - Digital Design Studio`,
+                description: s.tagline ?? `${s.name} by the studio`,
                 provider: {
                   "@type": "Organization",
-                  "name": "Eden",
+                  "name": brandName,
                   "url": "https://eden.design"
                 },
                 offers: {
@@ -67,11 +68,10 @@ export default function Services() {
     <main className="mx-auto min-h-dvh w-full max-w-6xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
       <header className="mb-8">
         <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-          Services & tiers
+          {t("services.title")}
         </h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Every service ships in three tiers — Basic, Pro, Premium. Tap a card
-          to compare tiers and brief us through a short form.
+          {t("services.subtitle")}
         </p>
       </header>
 
@@ -85,7 +85,7 @@ export default function Services() {
               category === c.key && "bg-primary text-primary-foreground ring-2 ring-primary/50",
             )}
           >
-            {c.label}
+            {t(c.labelKey)}
           </button>
         ))}
       </div>
@@ -119,9 +119,11 @@ export default function Services() {
                   {s.tagline}
                 </p>
                 <div className="mt-4 flex w-full items-center justify-between">
-                  <span className="text-sm font-semibold text-primary">from {inr(from)}</span>
+                  <span className="text-sm font-semibold text-primary">
+                    {t("services.from")} {inr(from)}
+                  </span>
                   <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-                    3 tiers
+                    {t("services.tiersBadge")}
                   </span>
                 </div>
               </motion.button>

@@ -10,6 +10,7 @@ import React, { StrictMode, useEffect, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import { CartProvider } from "./context/CartProvider";
+import { ContentProvider } from "./context/ContentProvider";
 import { SettingsProvider } from "./context/SettingsProvider";
 import { RequireAdmin } from "./components/eden/RequireAdmin";
 import "./index.css";
@@ -182,6 +183,7 @@ createRoot(document.getElementById("root")!).render(
       </ToolbarErrorBoundary>
       <ConvexAuthProvider client={convex}>
         <SettingsProvider>
+          <ContentProvider>
           <CartProvider>
             <BrowserRouter>
               <SeedOnce />
@@ -232,6 +234,7 @@ createRoot(document.getElementById("root")!).render(
             </BrowserRouter>
             <Toaster />
           </CartProvider>
+          </ContentProvider>
         </SettingsProvider>
       </ConvexAuthProvider>
     </RootErrorBoundary>

@@ -1,4 +1,5 @@
 import { api } from "@/convex/_generated/api";
+import { useContent } from "@/context/ContentProvider";
 import { inr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSeo } from "@/lib/seo";
@@ -15,13 +16,13 @@ import { Link } from "react-router";
  * profit split with them never leaves the admin console.
  */
 export default function Products() {
+  const { t, brandName } = useContent();
   const products = useQuery(api.products.listLive);
   const collaborators = useQuery(api.products.listPublicCollaborators);
 
   useSeo({
-    title: `Handmade Pieces | Eden - Digital Design & Management`,
-    description:
-      "Small-batch pieces made by hand in the studio and with the people we collaborate with. Every piece finished by a pair of hands, not a production line.",
+    title: t("seo.products.title"),
+    description: t("seo.products.description"),
     canonical: "/products",
     jsonLd: products === undefined || collaborators === undefined ? null : {
       "@context": "https://schema.org",
@@ -32,8 +33,8 @@ export default function Products() {
         item: {
           "@type": "Product",
           "name": p.name,
-          "description": p.description ?? `Handmade ${p.name} by Eden`,
-          "brand": { "@type": "Organization", "name": p.madeWith?.name ?? "Eden" },
+          "description": p.description ?? `Handmade ${p.name}`,
+          "brand": { "@type": "Organization", "name": p.madeWith?.name ?? brandName },
           "offers": {
             "@type": "Offer",
             "priceCurrency": "INR",
@@ -49,14 +50,13 @@ export default function Products() {
     <main className="mx-auto w-full max-w-6xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
       <header className="max-w-2xl">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Made by hand
+          {t("products.eyebrow")}
         </p>
         <h1 className="font-display mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">
-          The handmade shelf
+          {t("products.title")}
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          Pieces made in small batches, some by us and some with the people we work alongside.
-          Every one is finished by a pair of hands rather than a production line.
+          {t("products.subtitle")}
         </p>
       </header>
 
@@ -69,7 +69,7 @@ export default function Products() {
         >
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <HandHeart className="size-4 text-primary" />
-            Made with
+            {t("products.madeWith")}
           </h2>
           <ul className="mt-3 flex flex-wrap gap-2.5">
             {collaborators.map((person) => (
@@ -104,13 +104,13 @@ export default function Products() {
               <Package className="size-6" />
             </span>
             <p className="text-sm text-muted-foreground">
-              Nothing on the shelf just yet — check back soon.
+              {t("products.empty")}
             </p>
             <Link
               to="/services"
               className="text-sm font-semibold text-primary hover:underline"
             >
-              See what we do design-wise
+              {t("products.emptyCta")}
             </Link>
           </div>
         ) : (
@@ -158,8 +158,8 @@ export default function Products() {
                     )}
                   >
                     {product.madeWith
-                      ? `Made with ${product.madeWith.name}`
-                      : "Made by the studio"}
+                      ? `${t("products.madeWithPrefix")} ${product.madeWith.name}`
+                      : t("products.byStudio")}
                   </p>
                   <p className="font-display text-xl font-semibold tabular-nums">
                     {inr(product.price)}

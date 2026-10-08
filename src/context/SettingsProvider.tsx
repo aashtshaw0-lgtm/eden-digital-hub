@@ -10,6 +10,8 @@ export interface EdenSettings {
   qrImageUrl?: string;
   logoUrl?: string;
   logoDarkUrl?: string;
+  /** "image" or "text" when the studio has chosen; unset means image wins. */
+  logoMode?: "image" | "text";
   brandWord?: string;
   brandTagline?: string;
   logoLightColor?: string;
@@ -67,6 +69,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         qrImageUrl: settings.qrImageUrl ?? undefined,
         logoUrl: settings.logoUrl ?? undefined,
         logoDarkUrl: settings.logoDarkUrl ?? undefined,
+        logoMode: settings.logoMode ?? undefined,
         brandWord: settings.brandWord ?? undefined,
         brandTagline: settings.brandTagline ?? undefined,
         logoLightColor: settings.logoLightColor ?? undefined,

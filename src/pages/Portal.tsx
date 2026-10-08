@@ -1,5 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/convex/_generated/api";
+import { useContent } from "@/context/ContentProvider";
 import { ProofRequest } from "@/components/eden/ProofRequest";
 import { formatDate, inr } from "@/lib/format";
 import { useSeo } from "@/lib/seo";
@@ -17,10 +18,10 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function Portal() {
+  const { t } = useContent();
   useSeo({
-    title: `My Orders & Profile | Eden - Digital Design & Management`,
-    description:
-      "Your Eden portal — view and manage your orders, submit payment proofs, and track the status of your briefs.",
+    title: t("seo.portal.title"),
+    description: t("seo.portal.description"),
     canonical: "/portal",
     noIndex: false,
   });
@@ -40,7 +41,7 @@ export default function Portal() {
     <main className="mx-auto w-full max-w-5xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm text-muted-foreground">Welcome back</p>
+          <p className="text-sm text-muted-foreground">{t("portal.welcome")}</p>
           <h1 className="font-display mt-1 text-3xl font-semibold tracking-tight">
             {user?.name || user?.email}
           </h1>
@@ -52,7 +53,7 @@ export default function Portal() {
               to="/admin"
               className="clay-sm inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold text-primary"
             >
-              <ShieldCheck className="size-4" /> Admin console
+              <ShieldCheck className="size-4" /> {t("portal.adminLink")}
             </Link>
           )}
           <button
@@ -62,13 +63,13 @@ export default function Portal() {
             }}
             className="clay-sm inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground"
           >
-            <LogOut className="size-4" /> Sign out
+            <LogOut className="size-4" /> {t("portal.signOut")}
           </button>
         </div>
       </header>
 
       <section className="mt-10">
-        <h2 className="font-display text-xl font-semibold">Order history</h2>
+        <h2 className="font-display text-xl font-semibold">{t("portal.ordersTitle")}</h2>
         {orders === undefined ? (
           <div className="mt-4 space-y-2">
             {[0, 1, 2].map((i) => (
@@ -81,13 +82,13 @@ export default function Portal() {
               <PackageOpen className="size-6" />
             </span>
             <p className="text-sm text-muted-foreground">
-              No orders yet — your briefs will live here once you check out.
+              {t("portal.empty")}
             </p>
             <Link
               to="/services"
               className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
             >
-              Start a first brief <ArrowUpRight className="size-4" />
+              {t("portal.emptyCta")} <ArrowUpRight className="size-4" />
             </Link>
           </div>
         ) : (

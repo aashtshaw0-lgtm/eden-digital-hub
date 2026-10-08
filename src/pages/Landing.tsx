@@ -1,9 +1,12 @@
 import { api } from "@/convex/_generated/api";
 import { inr } from "@/lib/format";
 import { useSeo, getOrganizationSchema, getWebSiteSchema } from "@/lib/seo";
+import { useSettings } from "@/context/SettingsProvider";
+import { useContent } from "@/context/ContentProvider";
 import { serviceIcon } from "@/components/eden/serviceIcons";
 import { Portfolio3D } from "@/components/eden/Portfolio3D";
 
+import { SiteLogo } from "@/components/eden/SiteLogo";
 import { Reveal } from "@/components/eden/Reveal";
 import { FloatingOrb } from "@/components/eden/FloatingOrb";
 import { AnimatePresence, motion } from "framer-motion";
@@ -15,20 +18,20 @@ import { Link } from "react-router";
 const ROTATING_FALLBACK = ["with Eden", "by hand", "for keeps", "that converts"];
 
 export default function Landing() {
+  const { t, brandName } = useContent();
   useSeo({
-    title: "Eden — Digital Design & Management Studio",
-    description:
-      "Logos, posters, commercial designs, thumbnails and event banners — plus event planning and social media management. Handcrafted work, three transparent tiers, checkout in minutes.",
+    title: t("seo.home.title"),
+    description: t("seo.home.description"),
     canonical: "/",
     ogImage: "https://eden.design/og-image.jpg",
     jsonLd: {
       "@context": "https://schema.org",
       "@graph": [
-        getOrganizationSchema(),
-        getWebSiteSchema(),
+        getOrganizationSchema(brandName),
+        getWebSiteSchema(brandName),
         {
           "@type": "WebApplication",
-          "name": "Eden Studio",
+          "name": `${brandName} Studio`,
           "applicationCategory": "BusinessApplication",
           "operatingSystem": "Web",
           "description": "Digital design & management studio with AI assistant and live manager chat.",
@@ -41,6 +44,7 @@ export default function Landing() {
 
   const services = useQuery(api.catalog.listPublic);
   const portfolio = useQuery(api.portfolio.list);
+  const { heroLead, heroMode, heroAccent, heroAccentWords } = useSettings();
   const [wordIndex, setWordIndex] = useState(0);
   const [broken, setBroken] = useState<Set<string>>(new Set());
 
@@ -68,7 +72,7 @@ export default function Landing() {
         transition={{ delay: 0.04 }}
         className="relative z-10 flex justify-center px-4 pt-28 sm:pt-36"
       >
-        <EdenWordmark className="w-56 sm:w-72" />
+        <SiteLogo variant="light" size="lg" className="w-56 sm:w-72" />
       </motion.div>
 
       {/* ── Hero ─────────────────────────────────────────── */}
@@ -79,7 +83,7 @@ export default function Landing() {
           className="clay-sm inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium text-muted-foreground"
         >
           <Sparkles className="size-3.5 text-primary" />
-          Design & management studio
+          {t("brand.heroBadge")}
         </motion.span>
 
         <motion.h1
@@ -115,9 +119,7 @@ export default function Landing() {
           transition={{ delay: 0.16 }}
           className="mt-5 max-w-xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg"
         >
-          One studio for logos, posters, thumbnails, banners and full event or
-          social execution — every piece drawn by hand, with three honest tiers
-          on each service and a real person one click away.
+          {t("home.hero.subtitle")}
         </motion.p>
 
         <motion.div
@@ -130,19 +132,19 @@ export default function Landing() {
             to="/services"
             className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-md transition hover:brightness-110 hover:shadow-lg hover:shadow-primary/20"
           >
-            Explore services
+            {t("home.hero.ctaServices")}
           </Link>
           <a
             href="#portfolio"
             className="clay-sm rounded-full px-6 py-3 text-sm font-semibold transition hover:text-primary hover:shadow-md"
           >
-            See our work
+            {t("home.hero.ctaWork")}
           </a>
           <Link
             to="/products"
             className="clay-sm rounded-full px-6 py-3 text-sm font-semibold transition hover:text-primary hover:shadow-md"
           >
-            See handmade pieces
+            {t("home.hero.ctaProducts")}
           </Link>
         </motion.div>
 
@@ -152,7 +154,7 @@ export default function Landing() {
           transition={{ delay: 0.4 }}
           className="mt-10 flex flex-wrap justify-center gap-2.5"
         >
-          {["7 services", "3 transparent tiers", "UPI checkout", "Live manager chat", "Handmade shelf"].map((chip) => (
+          {[t("home.chip.1"), t("home.chip.2"), t("home.chip.3"), t("home.chip.4"), t("home.chip.5")].map((chip) => (
             <motion.span
               key={chip}
               initial={{ opacity: 0, scale: 0.8 }}
@@ -170,9 +172,9 @@ export default function Landing() {
       <section id="portfolio" className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
         <div className="mb-8 flex items-end justify-between gap-4">
           <Reveal>
-            <h2 className="font-display text-2xl font-semibold sm:text-3xl">Selected work</h2>
+            <h2 className="font-display text-2xl font-semibold sm:text-3xl">{t("home.work.title")}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              A few pieces that left the studio recently — drawn by hand, one brief at a time.
+              {t("home.work.subtitle")}
             </p>
           </Reveal>
         </div>
@@ -195,8 +197,8 @@ export default function Landing() {
       <section className="relative z-10 mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
         <div className="mb-8 text-center">
           <Reveal>
-            <h2 className="font-display text-2xl font-semibold sm:text-3xl">Everything we make & manage</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Pick a service, pick a tier, brief us in one form.</p>
+            <h2 className="font-display text-2xl font-semibold sm:text-3xl">{t("home.services.title")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t("home.services.subtitle")}</p>
           </Reveal>
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -222,7 +224,9 @@ export default function Landing() {
                   </span>
                   <h3 className="mt-4 font-semibold">{s.name}</h3>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{s.tagline}</p>
-                  <p className="mt-3 text-sm font-semibold text-primary">from {inr(from)}</p>
+                  <p className="mt-3 text-sm font-semibold text-primary">
+                    {t("services.from")} {inr(from)}
+                  </p>
                 </Link>
               </motion.div>
             );
@@ -238,7 +242,7 @@ export default function Landing() {
               to="/services"
               className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
             >
-              View all services <ArrowRight className="size-4" />
+              {t("home.services.cta")} <ArrowRight className="size-4" />
             </Link>
           </motion.div>
         </div>

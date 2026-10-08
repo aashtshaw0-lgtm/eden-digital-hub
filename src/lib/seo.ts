@@ -1,3 +1,4 @@
+import { useContent } from "@/context/ContentProvider";
 import { useEffect } from "react";
 
 const SITE_URL = "https://eden.design";
@@ -38,6 +39,8 @@ export function useSeo(opts: {
   noIndex?: boolean;
 }) {
   const { title, description, ogImage, jsonLd, canonical, noIndex } = opts;
+  // The company name is editable from the console, so the tab title follows it.
+  const { brandName } = useContent();
 
   useEffect(() => {
     // Canonical URL
@@ -54,7 +57,8 @@ export function useSeo(opts: {
     }
 
     if (title) {
-      document.title = `${title} | Eden`;
+      document.title = title.includes(brandName) ? title : `${title} | ${brandName}`;
+      setMeta("og:site_name", brandName, "property");
       setMeta("og:title", title, "property");
       setMeta("twitter:title", title);
       setMeta("twitter:site", "@eden_design");
@@ -70,11 +74,11 @@ export function useSeo(opts: {
       setMeta("og:image", ogImage, "property");
       setMeta("twitter:image", ogImage);
       setMeta("twitter:card", "summary_large_image");
-      setMeta("og:image:alt", title ?? "Eden - Digital Design & Management", "property");
+      setMeta("og:image:alt", title ?? brandName, "property");
     } else {
       setMeta("twitter:card", "summary_large_image");
     }
-  }, [title, description, ogImage, canonical, noIndex]);
+  }, [title, description, ogImage, canonical, noIndex, brandName]);
 
   useEffect(() => {
     if (!jsonLd) return;
@@ -94,11 +98,11 @@ export function useSeo(opts: {
 /**
  * Basic organization-level structured data (used on homepage).
  */
-export function getOrganizationSchema() {
+export function getOrganizationSchema(brandName = "Eden") {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
-    "name": "Eden",
+    "name": brandName,
     "url": SITE_URL,
     "logo": `${SITE_URL}/logo.svg`,
     "description": "Digital design & management studio selling one-off creative products and ongoing services.",
@@ -120,11 +124,11 @@ export function getOrganizationSchema() {
  * WebSite-level structured data with search action (helps Google understand
  * the site's search capability).
  */
-export function getWebSiteSchema() {
+export function getWebSiteSchema(brandName = "Eden") {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "name": "Eden",
+    "name": brandName,
     "url": SITE_URL,
     "potentialAction": {
       "@type": "SearchAction",
@@ -140,7 +144,12 @@ export function getWebSiteSchema() {
 /**
  * Service-level structured data (for the services page).
  */
-export function getServiceSchema(serviceName: string, description: string, priceRange: string) {
+export function getServiceSchema(
+  serviceName: string,
+  description: string,
+  priceRange: string,
+  brandName = "Eden",
+) {
   return {
     "@context": "https://schema.org",
     "@type": "Service",
@@ -148,7 +157,7 @@ export function getServiceSchema(serviceName: string, description: string, price
     "description": description,
     "provider": {
       "@type": "Organization",
-      "name": "Eden"
+      "name": brandName
     },
     "offers": {
       "@type": "Offer",

@@ -1,3 +1,4 @@
+import { useContent } from "@/context/ContentProvider";
 import { useSeo } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { Banknote, Cookie, FileText, ShieldCheck } from "lucide-react";
@@ -23,23 +24,20 @@ export default function Legal() {
   const tabParam = params.get("tab");
   const tab: TabKey = isTabKey(tabParam) ? tabParam : "privacy";
 
+  const { t, brandName } = useContent();
+  // The company name is editable, so the legal copy quotes it from settings.
+  const tokens = { brand: brandName };
+
   const tabTitles: Record<TabKey, string> = {
-    privacy: "Privacy Policy",
-    terms: "Terms & Conditions",
-    cookies: "Cookie Policy",
-    refunds: "Refunds & Cancellations"
+    privacy: t("legal.privacy.title"),
+    terms: t("legal.terms.title"),
+    cookies: t("legal.cookies.title"),
+    refunds: t("legal.refunds.title"),
   };
 
   useSeo({
     title: tabTitles[tab],
-    description:
-      tab === "privacy"
-        ? "How Eden handles your personal data, what we collect, where it lives, and your rights."
-        : tab === "terms"
-          ? "Terms of service for Eden's design and management services — orders, payments, ownership and fair use."
-          : tab === "cookies"
-            ? "What cookies Eden uses, what we don't use, and how to manage your choices."
-            : "How Eden handles refunds and cancellations for one-off services and ongoing monthly plans.",
+    description: t(`legal.${tab}.description`, tokens),
     canonical: `/legal?tab=${tab}`,
     noIndex: false,
   });
@@ -51,12 +49,12 @@ export default function Legal() {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
       <header className="text-center">
-        <p className="text-sm text-muted-foreground">The fine print, minus the fine print</p>
+        <p className="text-sm text-muted-foreground">{t("legal.eyebrow")}</p>
         <h1 className="font-display mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-          Policies & legalities
+          {t("legal.title")}
         </h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          Everything below applies to every order placed through Eden. Last updated {LAST_UPDATED}.
+          {t("legal.body", tokens)} Last updated {LAST_UPDATED}.
         </p>
       </header>
 
@@ -64,7 +62,9 @@ export default function Legal() {
         aria-label="Policy sections"
         className="clay mt-10 flex flex-wrap items-center gap-1 rounded-2xl p-1.5"
       >
-        {TABS.map(({ key, label, icon: Icon }) => (
+        {TABS.map(({ key, icon: Icon }) => {
+          const label = tabTitles[key];
+          return (
           <button
             key={key}
             onClick={() => selectTab(key)}
@@ -80,7 +80,8 @@ export default function Legal() {
             <span className="hidden sm:inline">{label}</span>
             <span className="sm:hidden">{label.split(" ")[0]}</span>
           </button>
-        ))}
+          );
+        })}
       </nav>
 
       <article key={tab} className="mt-8 space-y-8">

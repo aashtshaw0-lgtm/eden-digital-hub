@@ -61,6 +61,12 @@ const schema = defineSchema(
       logoStorageId: v.optional(v.id("_storage")),
       /** Dark-mode variant of the site logo (optional). When set, shown on dark surfaces. */
       logoDarkStorageId: v.optional(v.id("_storage")),
+      /**
+       * Which logo to show when both an image and a wordmark exist. Unset means
+       * "image wins": the uploaded image is used if there is one, otherwise the
+       * wordmark, otherwise the built-in mark.
+       */
+      logoMode: v.optional(v.union(v.literal("image"), v.literal("text"))),
       /** When no image logo is set, this word is rendered as the logo mark. */
       brandWord: v.optional(v.string()),
       /** Optional tagline shown under the brand word. */
@@ -79,6 +85,17 @@ const schema = defineSchema(
       ),
       updatedAt: v.optional(v.number()),
     }),
+
+    /**
+     * The site copy deck — one row per editable string, keyed by a stable id
+     * ("landing.hero.subtitle"). Rows exist only for keys an admin has
+     * overridden; everything else renders its built-in default.
+     */
+    siteContent: defineTable({
+      key: v.string(),
+      value: v.string(),
+      updatedAt: v.optional(v.number()),
+    }).index("by_key", ["key"]),
 
     // storefront
     services: defineTable({

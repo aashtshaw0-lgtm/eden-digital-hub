@@ -1,8 +1,9 @@
 import { api } from "@/convex/_generated/api";
+import { useContent } from "@/context/ContentProvider";
 import { useSettings } from "@/context/SettingsProvider";
 import { cn } from "@/lib/utils";
-import { useMutation } from "convex/react";
-import { CloudUpload, Loader2, Palette, Save, Trash2 } from "lucide-react";
+import { useAction, useMutation } from "convex/react";
+import { CloudUpload, Loader2, Palette, Save, Sparkles, Trash2, Wand2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -95,6 +96,47 @@ const COLOR_COMBOS = [
   },
 ];
 
+// Looks offered by the AI logo studio. `value` is what is sent as the style
+// hint; `label` is the short chip shown in the console.
+const AI_STYLES = [
+  { label: "Minimal", value: "premium, modern, minimal" },
+  { label: "Bold", value: "bold editorial, strong typography" },
+  { label: "Vintage", value: "vintage badge, engraved linework" },
+  { label: "Hand-drawn", value: "hand-drawn ink, organic strokes" },
+  { label: "Monogram", value: "geometric monogram mark" },
+  { label: "Botanical", value: "warm botanical illustration" },
+];
+
+/** Small live preview of the text/wordmark logo on a chosen surface. */
+function WordmarkPreview({
+  word,
+  tagline,
+  color,
+}: {
+  word: string;
+  tagline: string;
+  color: string;
+}) {
+  if (!word.trim()) {
+    return (
+      <span className="text-center text-[11px] text-muted-foreground">Built-in studio mark</span>
+    );
+  }
+  return (
+    <span
+      className="font-display inline-flex max-w-full flex-col items-center gap-0.5 leading-none"
+      style={{ color }}
+    >
+      <span className="text-base font-semibold sm:text-lg">{word}</span>
+      {tagline.trim() && (
+        <span className="text-[9px] font-medium uppercase tracking-[0.18em] opacity-70">
+          {tagline}
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function AdminSettings() {
   const settings = useSettings();
 
@@ -111,6 +153,7 @@ export function AdminSettings() {
     settings.heroAccentWords.join("|"),
     settings.logoUrl,
     settings.logoDarkUrl,
+    settings.logoMode,
     settings.brandWord,
     settings.brandTagline,
     settings.logoLightColor,
@@ -125,8 +168,10 @@ export function AdminSettings() {
 }
 
 function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }) {
+  const { t, brandName } = useContent();
   const update = useMutation(api.settings.update);
   const generateUploadUrl = useMutation(api.settings.generateUploadUrl);
+  const generateLogo = useAction(api.ai.generateLogo);
   const setQrImage = useMutation(api.settings.setQrImage);
   const setLogoImage = useMutation(api.settings.setLogoImage);
   const clearLogo = useMutation(api.settings.clearLogo);
@@ -135,11 +180,17 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
 
   // Logo mode: "image" (uploaded image) vs "text" (brand word mark).
   const [logoMode, setLogoMode] = useState<"image" | "text">(
-    settings.logoUrl ? "image" : "text",
+    settings.logoMode ?? (settings.logoUrl ? "image" : "text"),
   );
 
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoDarkBusy, setLogoDarkBusy] = useState(false);
+  // AI logo studio — the brief starts from the studio's own name and tagline.
+  const [aiBrief, setAiBrief] = useState(() =>
+    [brandName, t("brand.tagline")].filter(Boolean).join(" — "),
+  );
+  const [aiStyle, setAiStyle] = useState("premium, modern, minimal");
+  const [aiBusy, setAiBusy] = useState<null | "light" | "dark">(null);
   const [removeLogoBusy, setRemoveLogoBusy] = useState(false);
   const [removeLogoDarkBusy, setRemoveLogoDarkBusy] = useState(false);
   const [brandWord, setBrandWord] = useState(settings.brandWord ?? "");
@@ -184,6 +235,7 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
         heroMode,
         heroAccent,
         heroAccentWords: heroWords.split(","),
+        logoMode,
         brandWord: brandWord || undefined,
         brandTagline: brandTagline || undefined,
         logoLightColor: logoLightColor || undefined,
@@ -196,12 +248,6 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
       setSaving(false);
     }
   };
-
-  useEffect(() => {
-    if (settings.logoUrl && logoMode === "text") {
-      setLogoMode("image");
-    }
-  }, [settings.logoUrl, logoMode]);
 
   const uploadQr = async (file: File | undefined | null) => {
     if (!file) return;
@@ -307,6 +353,32 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
     }
   };
 
+  /**
+   * Draws a logo with the image model and writes it straight into the logo
+   * slot. The brief defaults to the studio's own name + tagline, so hitting
+   * generate with an empty box still produces something on-brand.
+   */
+  const runLogoAi = async (variant: "light" | "dark") => {
+    const brief =
+      aiBrief.trim() ||
+      [brandName, brandTagline || settings.brandTagline, t("brand.tagline")]
+        .filter(Boolean)
+        .join(" — ");
+    setAiBusy(variant);
+    try {
+      await generateLogo({ brief, variant, style: aiStyle });
+      toast.success(
+        variant === "dark"
+          ? "Dark-variant logo generated and applied."
+          : "Logo generated and applied across the whole site.",
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Logo generation failed.");
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
   const removeLogoDark = async () => {
     setRemoveLogoDarkBusy(true);
     try {
@@ -335,16 +407,35 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
           </button>
         </div>
 
-        {/* Studio logo — image or text; auto-adjusts to light/dark surfaces. */}
+        {/* Studio logo — an uploaded image, or a wordmark drawn from your own words. */}
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Studio logo
             </span>
-            <span className="text-[11px] text-muted-foreground">
-              PNG, SVG, AVIF, WebP, JPEG or GIF — up to 4 MB
-            </span>
+            <div className="clay-sm ml-auto flex rounded-full p-0.5">
+              {(["image", "text"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => {
+                    setLogoMode(mode);
+                    if (mode === "image" && !settings.logoUrl) logoRef.current?.click();
+                  }}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors",
+                    logoMode === mode
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {mode === "image" ? "Image" : "Wordmark"}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {logoMode === "image" ? (
+          <>
           <div className="flex gap-3">
             <div className="clay-inset flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border">
               {settings.logoUrl ? (
@@ -379,13 +470,164 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
                 onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
               />
               <p className="text-[11px] text-muted-foreground">
-                When a logo is set, the Eden wordmark is hidden everywhere and replaced by this image.
+                When an image logo is set, the studio mark is replaced by it everywhere — home,
+                footer and browser tab.
               </p>
             </div>
           </div>
+
+          {/* AI logo studio — the image model draws a logo straight into the slot. */}
+          <div className="clay-inset space-y-3 rounded-2xl p-4">
+            <div className="flex items-center gap-2">
+              <Wand2 className="size-3.5 text-primary" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                AI logo studio
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Describe the studio and the model draws a logo into the slot above — no designer, no
+              file juggling.
+            </p>
+            <textarea
+              value={aiBrief}
+              onChange={(e) => setAiBrief(e.target.value)}
+              rows={3}
+              placeholder={`${brandName} — a hand-drawn digital design studio, leaf and pen nib`}
+              className={inputCls}
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {AI_STYLES.map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() => setAiStyle(s.value)}
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                    aiStyle === s.value
+                      ? "bg-primary text-primary-foreground"
+                      : "clay-sm text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => void runLogoAi("light")}
+                disabled={aiBusy !== null}
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:brightness-110 disabled:opacity-60"
+              >
+                {aiBusy === "light" ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3.5" />
+                )}
+                Generate logo
+              </button>
+              <button
+                onClick={() => void runLogoAi("dark")}
+                disabled={aiBusy !== null}
+                className="clay-sm inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-60"
+              >
+                {aiBusy === "dark" ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3.5" />
+                )}
+                Dark variant
+              </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Generation takes a few seconds and applies the result immediately.
+            </p>
+          </div>
+          </>
+          ) : (
+          <div className="space-y-3">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Logo word or sentence
+              </span>
+              <input
+                value={brandWord}
+                onChange={(e) => setBrandWord(e.target.value)}
+                placeholder={brandName}
+                className={inputCls}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Line under the word (optional)
+              </span>
+              <input
+                value={brandTagline}
+                onChange={(e) => setBrandTagline(e.target.value)}
+                placeholder={t("brand.tagline")}
+                className={inputCls}
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Colour on light
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={logoLightColor}
+                    onChange={(e) => setLogoLightColor(e.target.value)}
+                    className="h-10 w-14 cursor-pointer rounded-xl border border-border bg-transparent p-1"
+                  />
+                  <span className="font-mono text-xs text-muted-foreground">{logoLightColor}</span>
+                </div>
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Colour on dark
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={logoDarkColor}
+                    onChange={(e) => setLogoDarkColor(e.target.value)}
+                    className="h-10 w-14 cursor-pointer rounded-xl border border-border bg-transparent p-1"
+                  />
+                  <span className="font-mono text-xs text-muted-foreground">{logoDarkColor}</span>
+                </div>
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-medium text-muted-foreground">On light backgrounds</p>
+                <div className="flex h-20 items-center justify-center rounded-2xl border bg-white p-3">
+                  <WordmarkPreview
+                    word={brandWord}
+                    tagline={brandTagline}
+                    color={logoLightColor}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-medium text-muted-foreground">On dark backgrounds</p>
+                <div className="flex h-20 items-center justify-center rounded-2xl border border-white/10 bg-neutral-900 p-3">
+                  <WordmarkPreview
+                    word={brandWord}
+                    tagline={brandTagline}
+                    color={logoDarkColor}
+                  />
+                </div>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Leave the word empty to fall back to the built-in studio mark. Click “Save settings”
+              to publish it.
+            </p>
+          </div>
+          )}
         </div>
 
         {/* Dark-mode logo variant — shown on dark surfaces when set. */}
+        {logoMode === "image" && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -431,12 +673,14 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
               />
               <p className="text-[11px] text-muted-foreground">
                 When set, this is used on dark surfaces; the light logo is still used on light backgrounds.
+                Upload one here, or generate one with the AI studio above.
               </p>
             </div>
           </div>
         </div>
+        )}
 
-{/* Quick colour themes — two-color preset swatches */}
+        {/* Quick colour themes — two-color preset swatches */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Palette className="size-3.5 text-muted-foreground" />

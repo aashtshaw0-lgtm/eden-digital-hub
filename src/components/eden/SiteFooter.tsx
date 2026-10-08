@@ -1,4 +1,5 @@
 import { useSettings } from "@/context/SettingsProvider";
+import { useContent } from "@/context/ContentProvider";
 import { OPEN_COOKIE_CONSENT_EVENT } from "@/components/eden/CookieConsent";
 import { Instagram, Linkedin, Link2, Twitter } from "lucide-react";
 import { Link } from "react-router";
@@ -6,6 +7,7 @@ import { SiteLogo } from "@/components/eden/SiteLogo";
 
 export function SiteFooter() {
   const { socialLinks } = useSettings();
+  const { t, brandName } = useContent();
 
   const socials = [
     { key: "instagram", href: socialLinks.instagram, icon: Instagram, label: "Instagram" },
@@ -18,18 +20,18 @@ export function SiteFooter() {
     <footer className="mt-20 border-t border-border/70 px-4 py-10 sm:px-6">
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-6 sm:flex-row">
         <Link to="/" className="flex flex-col items-center gap-1 sm:items-start">
-          <SiteLogo variant="light" className="w-32" />
-          <p className="text-xs text-muted-foreground">Digital design &amp; management</p>
+          <SiteLogo variant="light" size="sm" className="w-32" />
+          <p className="text-xs text-muted-foreground">{t("brand.tagline")}</p>
         </Link>
 
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
-          <Link to="/services" className="hover:text-foreground">Services</Link>
-          <Link to="/products" className="hover:text-foreground">Handmade</Link>
-          <Link to="/credits" className="hover:text-foreground">Credits</Link>
-          <Link to="/portal" className="hover:text-foreground">Portal</Link>
-          <Link to="/checkout" className="hover:text-foreground">Checkout</Link>
-          <Link to="/legal?tab=privacy" className="hover:text-foreground">Privacy</Link>
-          <Link to="/legal?tab=terms" className="hover:text-foreground">Terms</Link>
+          <Link to="/services" className="hover:text-foreground">{t("nav.services")}</Link>
+          <Link to="/products" className="hover:text-foreground">{t("nav.products")}</Link>
+          <Link to="/credits" className="hover:text-foreground">{t("nav.credits")}</Link>
+          <Link to="/portal" className="hover:text-foreground">{t("nav.portal")}</Link>
+          <Link to="/checkout" className="hover:text-foreground">{t("nav.checkout")}</Link>
+          <Link to="/legal?tab=privacy" className="hover:text-foreground">{t("nav.privacy")}</Link>
+          <Link to="/legal?tab=terms" className="hover:text-foreground">{t("nav.terms")}</Link>
         </nav>
 
         <div className="flex items-center gap-3">
@@ -48,7 +50,7 @@ export function SiteFooter() {
         </div>
       </div>
       <p className="mx-auto mt-8 w-full max-w-6xl text-center text-xs text-muted-foreground sm:text-left">
-        © {new Date().getFullYear()} Eden. Crafted slowly, delivered fast.{" "}
+        © {new Date().getFullYear()} {brandName}. {t("brand.footerNote")}{" "}
         <Link to="/legal?tab=refunds" className="hover:text-foreground">
           Refund policy
         </Link>{" "}·{" "}
@@ -64,7 +66,7 @@ export function SiteFooter() {
         </button>
       </p>
       <p className="mx-auto mt-4 w-full max-w-6xl text-center text-[10px] uppercase tracking-widest text-muted-foreground/60">
-        Made by H.A.I.O.S
+        {t("brand.madeBy")}
       </p>
     </footer>
   );

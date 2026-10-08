@@ -1,4 +1,5 @@
 import { useCart } from "@/context/CartProvider";
+import { useContent } from "@/context/ContentProvider";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/convex/_generated/api";
 import { inr } from "@/lib/format";
@@ -10,9 +11,9 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
-  { to: "/", label: "Home", icon: Sprout },
-  { to: "/services", label: "Services", icon: LayoutGrid },
-  { to: "/portal", label: "Portal", icon: CircleUserRound },
+  { to: "/", labelKey: "nav.home", icon: Sprout },
+  { to: "/services", labelKey: "nav.services", icon: LayoutGrid },
+  { to: "/portal", labelKey: "nav.portal", icon: CircleUserRound },
 ] as const;
 
 const PULSE_MS = 2400;
@@ -47,6 +48,7 @@ function useCartPulse(lastAddedAt: number) {
 export function DynamicIsland() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useContent();
   const { items, total, lastAddedAt } = useCart();
   const { isAuthenticated } = useAuth();
   const role = useQuery(api.users.myRole, isAuthenticated ? {} : "skip");
@@ -61,7 +63,8 @@ export function DynamicIsland() {
       className="glass fixed left-1/2 top-3 z-50 flex -translate-x-1/2 items-center gap-0.5 rounded-full p-1.5 sm:top-5"
       aria-label="Primary"
     >
-      {LINKS.map(({ to, label, icon: Icon }) => {
+      {LINKS.map(({ to, labelKey, icon: Icon }) => {
+        const label = t(labelKey);
         const active = to === "/" ? location.pathname === "/" : location.pathname.startsWith(to);
         return (
           <Link
@@ -96,7 +99,7 @@ export function DynamicIsland() {
               ? "text-primary-foreground"
               : "text-foreground/70 hover:text-foreground",
           )}
-          title="Eden Console"
+          title={t("nav.console")}
         >
           {location.pathname.startsWith("/admin") && (
             <motion.span
@@ -106,7 +109,7 @@ export function DynamicIsland() {
             />
           )}
           <ShieldCheck className="relative z-10 size-4" />
-          <span className="relative z-10 hidden font-medium md:inline">Console</span>
+          <span className="relative z-10 hidden font-medium md:inline">{t("nav.console")}</span>
         </Link>
       )}
 

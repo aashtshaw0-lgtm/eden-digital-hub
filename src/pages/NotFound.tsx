@@ -1,10 +1,12 @@
+import { useContent } from "@/context/ContentProvider";
 import { motion } from "framer-motion";
 import { Compass, Home, LayoutGrid } from "lucide-react";
 import { Link } from "react-router";
 import { useSeo } from "@/lib/seo";
 
 export default function NotFound() {
-  useSeo({ title: "Page not found | Eden - Digital Design & Management" });
+  const { t } = useContent();
+  useSeo({ title: "Page not found" });
 
   return (
     <motion.main
@@ -20,24 +22,23 @@ export default function NotFound() {
         404
       </p>
       <h1 className="font-display mt-2 text-2xl font-semibold sm:text-3xl">
-        This page wandered off the path
+        {t("notFound.title")}
       </h1>
       <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
-        The link may be old, or the page never existed. Nothing is broken on your side — let's get
-        you back to the good stuff.
+        {t("notFound.body")}
       </p>
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         <Link
           to="/"
           className="clay-sm inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
         >
-          <Home className="size-4" /> Back home
+          <Home className="size-4" /> {t("notFound.home")}
         </Link>
         <Link
           to="/services"
           className="clay-sm inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
-          <LayoutGrid className="size-4" /> Browse services
+          <LayoutGrid className="size-4" /> {t("notFound.services")}
         </Link>
       </div>
     </motion.main>

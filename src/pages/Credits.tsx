@@ -1,4 +1,5 @@
 import { api } from "@/convex/_generated/api";
+import { useContent } from "@/context/ContentProvider";
 import { LEGENDARY_THRESHOLD, PREMIUM_THRESHOLD, tierMeta, tierMetaForTier } from "@/lib/credits";
 import type { CreditTierLabel } from "@/lib/credits";
 import { inr } from "@/lib/format";
@@ -10,10 +11,12 @@ import { Megaphone, Sparkles } from "lucide-react";
 import { Link } from "react-router";
 
 export default function Credits() {
+  const { t } = useContent();
+  // Thresholds are quoted inside the copy, so they are substituted as tokens.
+  const tokens = { premium: inr(PREMIUM_THRESHOLD), legendary: inr(LEGENDARY_THRESHOLD) };
   useSeo({
-    title: `Credits — Supporters & Partners | Eden - Digital Design & Management`,
-    description:
-      "Meet the people who back Eden — premium and legendary supporters, sponsors, partners and press. The studio runs on the community that carries it.",
+    title: t("seo.credits.title"),
+    description: t("seo.credits.description"),
     canonical: "/credits",
   });
   const credits = useQuery(api.credits.listAll);
@@ -30,7 +33,7 @@ export default function Credits() {
           animate={{ opacity: 1, y: 0 }}
           className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
         >
-          The people who carried us
+          {t("credits.eyebrow")}
         </motion.p>
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
@@ -38,7 +41,7 @@ export default function Credits() {
           transition={{ delay: 0.08 }}
           className="font-display mt-2 text-4xl font-semibold tracking-tight sm:text-5xl"
         >
-          Credits
+          {t("credits.title")}
         </motion.h1>
         <motion.p
           initial={{ opacity: 0, y: 12 }}
@@ -46,11 +49,7 @@ export default function Credits() {
           transition={{ delay: 0.16 }}
           className="mt-3 text-sm leading-relaxed text-muted-foreground"
         >
-          The studio runs on the people who back it. Tips of {inr(PREMIUM_THRESHOLD)} and above
-          earn a premium credit, {inr(LEGENDARY_THRESHOLD)} and above earns legendary — and the
-          bigger the contribution, the higher the name sits. Names are shown as a first name and
-          last initial, and the amounts stay with us. Some entries here are goodwill credits we
-          owe our thanks to rather than payments.
+          {t("credits.subtitle", tokens)}
         </motion.p>
       </header>
 
@@ -62,7 +61,7 @@ export default function Credits() {
           className="relative mt-10 flex flex-wrap gap-2.5"
         >
           <span className="clay-sm rounded-full px-3.5 py-1.5 text-xs font-medium text-muted-foreground">
-            {credits.length} {credits.length === 1 ? "name" : "names"}
+            {credits.length} {credits.length === 1 ? t("credits.count.one") : t("credits.count.many")}
           </span>
           {(["legendary", "premium", "standard"] as const).map((tier) => {
             const count = credits.filter((c) => c.tier === tier).length;
@@ -109,13 +108,13 @@ export default function Credits() {
             <Sparkles className="size-6" />
           </span>
           <p className="text-sm text-muted-foreground">
-            No credits yet — the first tip above {inr(PREMIUM_THRESHOLD)} claims the wall.
+            {t("credits.empty", tokens)}
           </p>
           <Link
             to="/services"
             className="text-sm font-semibold text-primary hover:underline"
           >
-            Start a brief
+            {t("credits.emptyCta")}
           </Link>
         </motion.div>
       ) : (

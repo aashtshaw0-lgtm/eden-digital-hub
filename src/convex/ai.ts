@@ -22,6 +22,110 @@ const MAX_HISTORY_CHARS = 8000;
  * The system prompt is built live from the seeded catalog, so the assistant
  * always quotes real services and prices.
  */
+/**
+ * AI logo studio.
+ *
+ * Draws a logo with Gemini's native image model and drops it straight into the
+ * site's logo slot, so the studio can rebrand without a designer or a file to
+ * upload. Two variants are supported: the light logo used on light surfaces and
+ * the optional dark variant shown on dark ones.
+ *
+ * Requires GOOGLE_API_KEY (or GEMINI_API_KEY) in the Keys tab — the same key the
+ * sales assistant already uses.
+ */
+export const generateLogo = action({
+  args: {
+    /** What the brand is and how the logo should feel. */
+    brief: v.string(),
+    /** "light" writes the main logo, "dark" writes the dark-surface variant. */
+    variant: v.union(v.literal("light"), v.literal("dark")),
+    /** Optional look, e.g. "minimal", "vintage", "bold editorial". */
+    style: v.optional(v.string()),
+  },
+  handler: async (ctx, { brief, variant, style }) => {
+    // Same gate as the console itself: managers and the super owner only.
+    const role = await ctx.runQuery(api.users.myRole, {});
+    if (role !== "manager" && role !== "super_owner") {
+      throw new Error("Unauthorized: only studio admins can generate a logo.");
+    }
+
+    const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "Logo generation needs a Google AI key. Add GOOGLE_API_KEY in the Keys tab, then try again.",
+      );
+    }
+
+    const cleanedBrief = brief.trim().slice(0, 600);
+    const look = style?.trim() ? style.trim() : "premium, modern, minimal";
+    const palette =
+      variant === "dark"
+        ? "Built for a dark background: light, luminous marks on a plain white background so it stays visible in both themes."
+        : "Built for a light background: rich, confident marks on a plain white background.";
+
+    const prompt = [
+      `Design a logo for: ${cleanedBrief}.`,
+      `Style: ${look}.`,
+      palette,
+      "It is a studio wordmark or emblem used at about 240px wide in a website header and a footer.",
+      "Flat vector illustration, crisp clean edges, balanced composition, high contrast, no photographic detail, no mockup, no frame, no drop shadow, no watermark, no extra text beyond the brand name.",
+      "Centered with generous breathing room on a solid white background.",
+    ].join(" ");
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseModalities: ["IMAGE"] },
+        }),
+      },
+    );
+
+    if (!res.ok) {
+      const detail = await res.text();
+      console.warn("[Eden/AI] logo generation failed:", res.status, detail.slice(0, 500));
+      throw new Error(
+        res.status === 400 || res.status === 403
+          ? "The image model rejected that brief. Try a shorter description or a different style."
+          : "Logo generation is unavailable right now. Please try again in a moment.",
+      );
+    }
+
+    const payload = (await res.json()) as {
+      candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] } }[];
+    };
+    const part = payload.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
+    const base64 = part?.inlineData?.data;
+    const mimeType = part?.inlineData?.mimeType ?? "image/png";
+    if (!base64) {
+      throw new Error("The image model did not return a picture. Try rephrasing the brief.");
+    }
+
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: mimeType });
+    const storageId = await ctx.storage.store(blob);
+
+    if (variant === "dark") {
+      await ctx.runMutation(api.settings.setLogoDarkImage, { storageId });
+    } else {
+      await ctx.runMutation(api.settings.setLogoImage, { storageId });
+    }
+
+    return {
+      storageId,
+      mimeType,
+      variant,
+      dataUrl: `data:${mimeType};base64,${base64}`,
+    };
+  },
+});
+
 export const assistantReply = action({
   args: {
     history: v.array(
