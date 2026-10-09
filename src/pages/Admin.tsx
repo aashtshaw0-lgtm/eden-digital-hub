@@ -9,6 +9,8 @@ import { AdminCoupons } from "@/components/eden/admin/AdminCoupons";
 import { AdminServices } from "@/components/eden/admin/AdminServices";
 import { AdminProducts } from "@/components/eden/admin/AdminProducts";
 import { AdminRoles } from "@/components/eden/admin/AdminRoles";
+import { AdminStats } from "@/components/eden/admin/AdminStats";
+import { AuroraBackground, ShimmerText } from "@/components/eden/motion";
 import { useContent } from "@/context/ContentProvider";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/convex/_generated/api";
@@ -43,15 +45,21 @@ export default function Admin() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
-      <header className="mb-8">
+    <main className="relative mx-auto w-full max-w-6xl overflow-hidden px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
+      {/* Same drifting colour field the public site uses, dialled back so the
+          boards stay the loudest thing on the page. */}
+      <AuroraBackground className="opacity-60" />
+
+      <header className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Invisible back office
         </p>
         <h1 className="font-display mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
-          {brandName} console
+          <ShimmerText>{brandName} console</ShimmerText>
         </h1>
       </header>
+
+      <AdminStats onJump={setTab} />
 
       <nav className="mb-6 flex flex-wrap gap-2">
         {visibleTabs.map((t) => (
