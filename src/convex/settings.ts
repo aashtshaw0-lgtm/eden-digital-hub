@@ -8,6 +8,17 @@ const DEFAULTS = {
   upiId: "eden.payments@upi",
 };
 
+/**
+ * `"studio.example/"` → `"https://studio.example"`. A bare host is promoted to
+ * https because that is what a public site is served over; an empty value stays
+ * empty, which the client reads as "use the current origin".
+ */
+export function normalizeSiteUrl(raw?: string | null): string | undefined {
+  const trimmed = raw?.trim().replace(/\/+$/, "");
+  if (!trimmed) return undefined;
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
 /** Public read — powers the whole site's live theming + checkout payment block. */
 export const get = query({
   args: {},
@@ -44,6 +55,10 @@ export const get = query({
       brandTagline: row?.brandTagline ?? undefined,
       logoLightColor: row?.logoLightColor ?? undefined,
       logoDarkColor: row?.logoDarkColor ?? undefined,
+      // Stored trimmed and without a trailing slash so the client can simply
+      // concatenate a path onto it.
+      siteUrl: normalizeSiteUrl(row?.siteUrl),
+      twitterHandle: row?.twitterHandle?.trim() || undefined,
       socialLinks: {
         instagram: row?.socialLinks?.instagram ?? "",
         twitter: row?.socialLinks?.twitter ?? "",
@@ -76,6 +91,8 @@ export const update = mutation({
     brandTagline: v.optional(v.string()),
     logoLightColor: v.optional(v.string()),
     logoDarkColor: v.optional(v.string()),
+    siteUrl: v.optional(v.string()),
+    twitterHandle: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -106,6 +123,12 @@ export const update = mutation({
       ...(args.brandTagline !== undefined ? { brandTagline: args.brandTagline } : {}),
       ...(args.logoLightColor !== undefined ? { logoLightColor: args.logoLightColor } : {}),
       ...(args.logoDarkColor !== undefined ? { logoDarkColor: args.logoDarkColor } : {}),
+      ...(args.siteUrl !== undefined
+        ? { siteUrl: args.siteUrl.trim().replace(/\/+$/, "") }
+        : {}),
+      ...(args.twitterHandle !== undefined
+        ? { twitterHandle: args.twitterHandle.trim() }
+        : {}),
       socialLinks: {
         instagram: args.instagram,
         twitter: args.twitter,
@@ -148,6 +171,8 @@ export const update = mutation({
         primaryColor: args.primaryColor ?? DEFAULTS.primaryColor,
         backgroundColor: args.backgroundColor ?? DEFAULTS.backgroundColor,
         upiId: args.upiId ?? DEFAULTS.upiId,
+        ...(args.siteUrl ? { siteUrl: args.siteUrl.trim().replace(/\/+$/, "") } : {}),
+        ...(args.twitterHandle ? { twitterHandle: args.twitterHandle.trim() } : {}),
         ...(args.logoStorageId !== undefined ? { logoStorageId: args.logoStorageId } : {}),
         ...(args.logoDarkStorageId !== undefined
           ? { logoDarkStorageId: args.logoDarkStorageId }

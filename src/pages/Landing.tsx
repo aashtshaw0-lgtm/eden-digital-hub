@@ -1,6 +1,12 @@
 import { api } from "@/convex/_generated/api";
 import { inr } from "@/lib/format";
-import { useSeo, getOrganizationSchema, getWebSiteSchema } from "@/lib/seo";
+import {
+  absolute,
+  getOrganizationSchema,
+  getWebSiteSchema,
+  resolveSiteUrl,
+  useSeo,
+} from "@/lib/seo";
 import { useSettings } from "@/context/SettingsProvider";
 import { useContent } from "@/context/ContentProvider";
 import { serviceIcon } from "@/components/eden/serviceIcons";
@@ -29,24 +35,35 @@ const ROTATING_FALLBACK = ["by hand", "for keeps", "that converts"];
 
 export default function Landing() {
   const { t, brandName } = useContent();
+  const { heroLead, heroMode, heroAccent, heroAccentWords, siteUrl, socialLinks } =
+    useSettings();
+
+  // Structured data describes the studio as configured, not as it was shipped:
+  // the domain is the one the owner set, and the sameAs list is only the
+  // profiles they actually filled in.
+  const socials = useMemo(
+    () => Object.values(socialLinks).filter((link) => link?.trim()),
+    [socialLinks],
+  );
+
   useSeo({
     title: t("seo.home.title"),
     description: t("seo.home.description"),
     canonical: "/",
-    ogImage: "https://eden.design/og-image.jpg",
+    ogImage: "/og-image.jpg",
     jsonLd: {
       "@context": "https://schema.org",
       "@graph": [
-        getOrganizationSchema(brandName),
-        getWebSiteSchema(brandName),
+        getOrganizationSchema(brandName, { siteUrl, socials }),
+        getWebSiteSchema(brandName, { siteUrl }),
         {
           "@type": "WebApplication",
           "name": `${brandName} Studio`,
           "applicationCategory": "BusinessApplication",
           "operatingSystem": "Web",
           "description": "Digital design & management studio with AI assistant and live manager chat.",
-          "url": "https://eden.design",
-          "screenshot": "https://eden.design/screenshot.jpg"
+          ...(resolveSiteUrl(siteUrl) ? { "url": resolveSiteUrl(siteUrl) } : {}),
+          "screenshot": absolute(resolveSiteUrl(siteUrl), "/screenshot.jpg")
         }
       ]
     },
@@ -54,7 +71,6 @@ export default function Landing() {
 
   const services = useQuery(api.catalog.listPublic);
   const portfolio = useQuery(api.portfolio.list);
-  const { heroLead, heroMode, heroAccent, heroAccentWords } = useSettings();
   const [wordIndex, setWordIndex] = useState(0);
   const [broken, setBroken] = useState<Set<string>>(new Set());
 

@@ -5,16 +5,23 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { api } from "@/convex/_generated/api";
-import { buildDailySeries, compareWindows } from "@/lib/adminStats";
+import { buildTrend } from "@/lib/adminStats";
 import { inr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
 import { TrendingDown, TrendingUp } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, Line, XAxis, YAxis } from "recharts";
 
-const TREND_DAYS = 14;
-const COMPARE_DAYS = 7;
+/**
+ * The windows the studio actually reads the board in: a week to see this week,
+ * a fortnight for the default read, a month and a quarter for the slow-moving
+ * answer. Each one is charted and compared against the equally long window
+ * before it — see `buildTrend`, which fetches twice this span.
+ */
+const RANGES = [7, 14, 30, 90] as const;
+type Range = (typeof RANGES)[number];
+const DEFAULT_RANGE: Range = 14;
 
 // Colours resolve through the chart wrapper's own CSS variables, which are set
 // from the theme's tokens — so the trend follows the studio's brand colour.
@@ -32,13 +39,13 @@ const config = {
  */
 export function AdminRevenueTrend() {
   const orders = useQuery(api.orders.listAll);
+  const [days, setDays] = useState<Range>(DEFAULT_RANGE);
 
-  const series = useMemo(
+  const { series, trend } = useMemo(
     // One `now` for the whole pass, so every point agrees on which day is today.
-    () => buildDailySeries(orders ?? [], { days: TREND_DAYS, now: Date.now() }),
-    [orders],
+    () => buildTrend(orders ?? [], { days, now: Date.now() }),
+    [orders, days],
   );
-  const trend = compareWindows(series, { days: COMPARE_DAYS });
 
   const up = (trend.deltaPct ?? 0) >= 0;
 
@@ -48,8 +55,31 @@ export function AdminRevenueTrend() {
         <div>
           <h2 className="font-display text-lg font-semibold">Revenue trend</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Last {TREND_DAYS} days · collected against booked
+            Last {days} days · collected against booked
           </p>
+
+          <div
+            role="group"
+            aria-label="Trend date range"
+            className="mt-3 flex flex-wrap gap-1.5"
+          >
+            {RANGES.map((range) => (
+              <button
+                key={range}
+                type="button"
+                onClick={() => setDays(range)}
+                aria-pressed={days === range}
+                className={cn(
+                  "tap rounded-full px-3 py-1 text-xs font-medium tabular-nums transition-colors",
+                  days === range
+                    ? "bg-primary text-primary-foreground ring-2 ring-primary/40"
+                    : "clay-sm text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {range}d
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="text-right">
@@ -59,7 +89,7 @@ export function AdminRevenueTrend() {
           <div className="mt-0.5 flex items-center justify-end gap-1.5 text-xs">
             {trend.deltaPct === null ? (
               <span className="text-muted-foreground">
-                no earlier week to compare
+                no earlier {days}-day window to compare
               </span>
             ) : (
               <span
@@ -74,7 +104,7 @@ export function AdminRevenueTrend() {
               </span>
             )}
             <span className="text-muted-foreground">
-              vs previous {COMPARE_DAYS} days · {trend.recentOrders}{" "}
+              vs previous {days} days · {trend.recentOrders}{" "}
               {trend.recentOrders === 1 ? "order" : "orders"}
             </span>
           </div>
@@ -138,7 +168,8 @@ export function AdminRevenueTrend() {
       <p className="border-t border-border/60 px-5 py-3 text-[11px] leading-relaxed text-muted-foreground">
         Collected counts only receipts that resolved to an amount; an unread
         screenshot is left out rather than treated as zero. Booked is what
-        clients agreed to pay, whether or not the proof has arrived yet.
+        clients agreed to pay, whether or not the proof has arrived yet. The
+        percentage compares the selected window against the one before it.
       </p>
     </section>
   );

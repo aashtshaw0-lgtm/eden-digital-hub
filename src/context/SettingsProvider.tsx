@@ -16,6 +16,14 @@ export interface EdenSettings {
   brandTagline?: string;
   logoLightColor?: string;
   logoDarkColor?: string;
+  /**
+   * Public origin of the live site, e.g. "https://studio.example". Unset means
+   * "whatever origin this page is served from" — which is what previews want,
+   * and what canonical/OpenGraph URLs fall back to.
+   */
+  siteUrl?: string;
+  /** X/Twitter handle for `twitter:site`, with the @. */
+  twitterHandle?: string;
   heroLead: string;
   heroMode: "rotating" | "static";
   heroAccent: string;
@@ -88,6 +96,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         brandTagline: settings.brandTagline ?? undefined,
         logoLightColor: settings.logoLightColor ?? undefined,
         logoDarkColor: settings.logoDarkColor ?? undefined,
+        siteUrl: settings.siteUrl ?? undefined,
+        twitterHandle: settings.twitterHandle ?? undefined,
         heroLead: settings.heroLead,
         heroMode: settings.heroMode,
         heroAccent: settings.heroAccent,

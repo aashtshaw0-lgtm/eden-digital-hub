@@ -6,11 +6,15 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { useContent } from "@/context/ContentProvider";
+import { useSettings } from "@/context/SettingsProvider";
+import { buildHandoverDoc, buildRobots, buildSitemap } from "@/lib/handover";
 import {
   ArrowRight,
   BookOpenCheck,
   Coins,
   CreditCard,
+  Download,
+  FileCode2,
   Handshake,
   KeyRound,
   Palette,
@@ -18,6 +22,19 @@ import {
   ShoppingBag,
   Users,
 } from "lucide-react";
+
+/** Saves a generated string to disk without touching the DOM outside the click. */
+function download(filename: string, text: string, type = "text/plain") {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const secondaryBtn =
+  "clay-sm inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50";
 
 /**
  * The console's own manual.
@@ -121,8 +138,43 @@ const TABLES: { name: string; holds: string }[] = [
   { name: "users", holds: "Accounts, with the role that decides console access." },
 ];
 
+/**
+ * The handover checklist. Shared by the page and the exported document on
+ * purpose — the two must never disagree about what is left to do.
+ */
+const HANDOVER_STEPS: string[] = [
+  "Set the studio's real name and copy in Words & copy, so nothing public still reads like a template.",
+  "Upload the logo and pick theme colours in the Website tab.",
+  "Put in the real UPI ID and payment QR, then check the readiness warning is gone.",
+  "Keep the AI key connected in the Keys/API keys tab if you want receipts read automatically; the studio works without it, just by hand.",
+  "Add every manager in the Roles tab, and set the owner's email as the studio owner so the top-level role follows the account.",
+  "Read the Legal pages as the new owner — they are written for a small Indian design studio and may need your own entity's wording.",
+  "Set the site's own domain in the Website tab → Domain and search, then download sitemap.xml and robots.txt from this tab and drop them over the ones in public/.",
+  "Hand over the accounts themselves: the Convex deployment, the AI key, and the host's login. The database is the business — without those, this machine cannot take orders.",
+];
+
 export function AdminGuide({ onJump }: { onJump?: (tab: string) => void }) {
   const { brandName } = useContent();
+  const { siteUrl } = useSettings();
+  const hasDomain = Boolean(siteUrl?.trim());
+
+  // Everything below is generated from what this console actually knows, so the
+  // exported document can never describe a version of the studio that is not
+  // the one running.
+  const exportDoc = () =>
+    download(
+      `${brandName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "studio"}-handover.md`,
+      buildHandoverDoc({
+        brandName,
+        siteUrl,
+        generatedAt: Date.now(),
+        tabs: TABS,
+        orderStates: ORDER_STATES,
+        tables: TABLES,
+        steps: HANDOVER_STEPS,
+      }),
+      "text/markdown",
+    );
 
   return (
     <div className="space-y-5">
@@ -146,6 +198,62 @@ export function AdminGuide({ onJump }: { onJump?: (tab: string) => void }) {
           <Badge variant="secondary">You: /admin</Badge>
           <Badge variant="secondary">Legal: /legal · /credits</Badge>
         </div>
+      </section>
+
+      <section className="clay rounded-[1.35rem] p-6">
+        <span className="tint flex size-10 items-center justify-center rounded-2xl">
+          <Download className="size-5" />
+        </span>
+        <h2 className="font-display mt-4 text-2xl font-semibold tracking-tight">
+          Take it with you
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          The whole page below, as one Markdown file you can print, email or hand
+          to whoever runs this next — written from the settings this console
+          actually holds, so it cannot describe a version of {brandName} that is
+          not the one running.
+        </p>
+
+        {!hasDomain && (
+          <p className="clay-inset mt-3 rounded-xl px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+            No domain is set yet, so the sitemap and robots files stay relative.
+            Add the studio's address in the Website tab → Domain and search to
+            get both with it filled in.
+          </p>
+        )}
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={exportDoc}
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:brightness-110"
+          >
+            <Download className="size-4" />
+            Download handover doc (.md)
+          </button>
+          <button
+            type="button"
+            disabled={!hasDomain}
+            onClick={() => download("sitemap.xml", buildSitemap(siteUrl), "application/xml")}
+            className={secondaryBtn}
+          >
+            <FileCode2 className="size-4" />
+            Download sitemap.xml
+          </button>
+          <button
+            type="button"
+            onClick={() => download("robots.txt", buildRobots(siteUrl))}
+            className={secondaryBtn}
+          >
+            <FileCode2 className="size-4" />
+            Download robots.txt
+          </button>
+        </div>
+        <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+          Drop the two files over the copies in <code className="font-mono">public/</code>{" "}
+          before you deploy. The Markdown already contains both, so a single
+          download is enough to hand the whole thing over.
+        </p>
       </section>
 
       <Accordion type="multiple" defaultValue={["tour"]} className="space-y-3">
@@ -331,10 +439,12 @@ export function AdminGuide({ onJump }: { onJump?: (tab: string) => void }) {
                 the cookie banner is wired to them.
               </li>
               <li>
-                <strong className="font-semibold text-foreground">One known limitation:</strong>{" "}
-                the SEO metadata, sitemap and structured data still point at the
-                template's original domain. Move the site to your own domain and those
-                constants should be updated with it.
+                <strong className="font-semibold text-foreground">Your own domain</strong>{" "}
+                is set in the Website tab (Domain and search). Canonical links,
+                the social preview card, the structured data and the generated
+                sitemap all follow it — nothing in the build hardcodes an
+                address, so a preview or staging copy correctly points at
+                itself until a domain is chosen.
               </li>
             </ul>
           </AccordionContent>
@@ -377,16 +487,7 @@ export function AdminGuide({ onJump }: { onJump?: (tab: string) => void }) {
           </AccordionTrigger>
           <AccordionContent>
             <ol className="space-y-2 text-xs leading-relaxed text-muted-foreground">
-              {[
-                "Set the studio's real name and copy in Words & copy, so nothing public still reads like a template.",
-                "Upload the logo and pick theme colours in the Website tab.",
-                "Put in the real UPI ID and payment QR, then check the readiness warning is gone.",
-                "Keep the AI key connected in the Keys/API keys tab if you want receipts read automatically; the studio works without it, just by hand.",
-                "Add every manager in the Roles tab, and set the owner's email as the studio owner so the top-level role follows the account.",
-                "Read the Legal pages as the new owner — they are written for a small Indian design studio and may need your own entity's wording.",
-                "Move the domain: point the site at the new owner's host and update the SEO constants and sitemap.",
-                "Hand over the accounts themselves: the Convex deployment, the AI key, and the host's login. The database is the business — without those, this machine cannot take orders.",
-              ].map((step, i) => (
+              {HANDOVER_STEPS.map((step, i) => (
                 <li key={step} className="flex gap-2.5">
                   <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold text-primary">
                     {i + 1}

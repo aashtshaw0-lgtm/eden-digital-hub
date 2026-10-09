@@ -51,7 +51,9 @@ export default function Services() {
                 provider: {
                   "@type": "Organization",
                   "name": brandName,
-                  "url": "https://eden.design"
+                  // The page's own address: JSON-LD resolves a relative IRI
+                  // against the document, so no domain is hardcoded here.
+                  "url": "/"
                 },
                 offers: {
                   "@type": "AggregateOffer",

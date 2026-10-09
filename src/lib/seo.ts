@@ -1,7 +1,27 @@
 import { useContent } from "@/context/ContentProvider";
+import { useSettings } from "@/context/SettingsProvider";
+import { absolute, siteOrigin } from "@/lib/site";
 import { useEffect } from "react";
 
-const SITE_URL = "https://eden.design";
+export { absolute };
+
+/**
+ * Where every absolute URL on the site comes from.
+ *
+ * The studio's domain is not hardcoded anywhere: it is set in the console
+ * (Website tab) and read back here. When it is **not** set we use the origin the
+ * page is actually served from — which keeps previews and staging pointing at
+ * themselves rather than at a domain the studio may not own.
+ */
+export function resolveSiteUrl(configured?: string | null): string {
+  return siteOrigin(configured) || (typeof window !== "undefined" ? window.location.origin : "");
+}
+
+/** `"studio"` / `"@studio"` → `"@studio"`; nothing configured stays nothing. */
+export function normalizeHandle(raw?: string | null): string | undefined {
+  const trimmed = raw?.trim().replace(/^@+/, "");
+  return trimmed ? `@${trimmed}` : undefined;
+}
 
 function setMeta(name: string, content: string, attr: "name" | "property" = "name") {
   let el = document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${name}"]`);
@@ -13,16 +33,21 @@ function setMeta(name: string, content: string, attr: "name" | "property" = "nam
   el.setAttribute("content", content);
 }
 
-function setLink(rel: string, href: string, attr?: string) {
-  const selector = attr ? `link[${attr}="${href}"]` : `link[href="${href}"]`;
-  let el = document.head.querySelector<HTMLLinkElement>(selector);
+/**
+ * Sets (or creates) the one element for this `rel`.
+ *
+ * Matched on `rel`, never on `href`: the shipped `index.html` already carries a
+ * relative `<link rel="canonical">`, and looking the tag up by URL would miss it
+ * and leave two competing canonicals in the head — with the stale one winning.
+ */
+function setRelLink(rel: string, href: string) {
+  let el = document.head.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
   if (!el) {
     el = document.createElement("link");
     el.rel = rel;
-    if (attr) el.setAttribute(attr, href);
-    el.href = href;
     document.head.appendChild(el);
   }
+  el.href = href;
 }
 
 /**
@@ -39,13 +64,17 @@ export function useSeo(opts: {
   noIndex?: boolean;
 }) {
   const { title, description, ogImage, jsonLd, canonical, noIndex } = opts;
-  // The company name is editable from the console, so the tab title follows it.
+  // The company name is editable from the console, so the tab title follows it —
+  // as does the domain, which is stored alongside the rest of the branding.
   const { brandName } = useContent();
+  const { siteUrl, twitterHandle } = useSettings();
+  const base = resolveSiteUrl(siteUrl);
+  const handle = normalizeHandle(twitterHandle);
 
   useEffect(() => {
-    // Canonical URL
+    // Canonical URL — absolute, built from the studio's configured domain.
     if (canonical) {
-      setLink("canonical", `${SITE_URL}${canonical}`);
+      setRelLink("canonical", absolute(base, canonical));
     }
 
     // No-index for private pages
@@ -61,24 +90,27 @@ export function useSeo(opts: {
       setMeta("og:site_name", brandName, "property");
       setMeta("og:title", title, "property");
       setMeta("twitter:title", title);
-      setMeta("twitter:site", "@eden_design");
+      // Only claim a handle the studio actually configured.
+      if (handle) setMeta("twitter:site", handle);
     }
     if (description) {
       setMeta("description", description);
       setMeta("og:description", description, "property");
       setMeta("twitter:description", description);
       setMeta("og:type", "website", "property");
-      setMeta("og:url", canonical ? `${SITE_URL}${canonical}` : SITE_URL, "property");
+      setMeta("og:url", absolute(base, canonical ?? "/"), "property");
     }
     if (ogImage) {
-      setMeta("og:image", ogImage, "property");
-      setMeta("twitter:image", ogImage);
+      // Callers pass a route like "/og-image.jpg"; the domain is added here.
+      const image = absolute(base, ogImage);
+      setMeta("og:image", image, "property");
+      setMeta("twitter:image", image);
       setMeta("twitter:card", "summary_large_image");
       setMeta("og:image:alt", title ?? brandName, "property");
     } else {
       setMeta("twitter:card", "summary_large_image");
     }
-  }, [title, description, ogImage, canonical, noIndex, brandName]);
+  }, [title, description, ogImage, canonical, noIndex, brandName, base, handle]);
 
   useEffect(() => {
     if (!jsonLd) return;
@@ -97,21 +129,22 @@ export function useSeo(opts: {
 
 /**
  * Basic organization-level structured data (used on homepage).
+ *
+ * `socials` comes from the links the studio filled in — we never invent
+ * profiles for accounts that may not be theirs.
  */
-export function getOrganizationSchema(brandName = "Studio") {
+export function getOrganizationSchema(
+  brandName = "Studio",
+  { siteUrl, socials = [] }: { siteUrl?: string; socials?: string[] } = {},
+) {
+  const base = resolveSiteUrl(siteUrl);
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": brandName,
-    "url": SITE_URL,
-    "logo": `${SITE_URL}/logo.svg`,
+    ...(base ? { "url": base, "logo": absolute(base, "/logo.svg") } : {}),
     "description": "Digital design & management studio selling one-off creative products and ongoing services.",
-    "sameAs": [
-      "https://instagram.com/eden_design",
-      "https://twitter.com/eden_design",
-      "https://behance.net/eden_design",
-      "https://linkedin.com/company/eden-design"
-    ],
+    ...(socials.length ? { sameAs: socials } : {}),
     "contactPoint": {
       "@type": "ContactPoint",
       "contactType": "customer service",
@@ -124,17 +157,21 @@ export function getOrganizationSchema(brandName = "Studio") {
  * WebSite-level structured data with search action (helps Google understand
  * the site's search capability).
  */
-export function getWebSiteSchema(brandName = "Studio") {
+export function getWebSiteSchema(
+  brandName = "Studio",
+  { siteUrl }: { siteUrl?: string } = {},
+) {
+  const base = resolveSiteUrl(siteUrl);
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
     "name": brandName,
-    "url": SITE_URL,
+    ...(base ? { "url": base } : {}),
     "potentialAction": {
       "@type": "SearchAction",
       "target": {
         "@type": "EntryPoint",
-        "urlTemplate": `${SITE_URL}/?q={search_term_string}`
+        "urlTemplate": absolute(base, "/?q={search_term_string}")
       },
       "query-input": "required name=search_term_string"
     }

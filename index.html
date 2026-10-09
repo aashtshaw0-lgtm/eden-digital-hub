@@ -38,23 +38,26 @@
   <meta property="og:title" content="Digital design & management studio" />
   <meta property="og:description"
     content="Logos, posters, thumbnails, banners, event planning & social media management — three honest tiers on everything, briefed in one form." />
-  <meta property="og:image" content="https://eden.design/og-image.jpg" />
+  <meta property="og:image" content="/og-image.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:locale" content="en_IN" />
-  <meta property="og:url" content="https://eden.design/" />
+  <meta property="og:url" content="/" />
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Digital design & management studio" />
   <meta name="twitter:description"
     content="Handcrafted design and managed execution — with three transparent tiers on every service." />
-  <meta name="twitter:image" content="https://eden.design/og-image.jpg" />
-  <meta name="twitter:site" content="@eden_design" />
-  <meta name="twitter:creator" content="@eden_design" />
+  <meta name="twitter:image" content="/og-image.jpg" />
 
-  <!-- Canonical -->
-  <link rel="canonical" href="https://eden.design/" />
+  <!--
+    Canonical, og:url and the twitter:site handle are filled in at runtime from
+    the domain stored in the console (Website tab), so nothing here names a
+    domain the studio has not claimed. Relative URLs in JSON-LD are resolved by
+    crawlers against the page they were served from.
+  -->
+  <link rel="canonical" href="/" />
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -69,16 +72,10 @@
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "Studio",
-    "url": "https://eden.design/",
-    "logo": "https://eden.design/logo.svg",
+    "url": "/",
+    "logo": "/logo.svg",
     "description": "Digital design & management studio selling one-off creative products and ongoing services.",
     "foundingDate": "2024",
-    "sameAs": [
-      "https://instagram.com/eden_design",
-      "https://twitter.com/eden_design",
-      "https://behance.net/eden_design",
-      "https://linkedin.com/company/eden-design"
-    ],
     "contactPoint": {
       "@type": "ContactPoint",
       "contactType": "customer service",
@@ -91,12 +88,12 @@
     "@context": "https://schema.org",
     "@type": "WebSite",
     "name": "Studio",
-    "url": "https://eden.design/",
+    "url": "/",
     "potentialAction": {
       "@type": "SearchAction",
       "target": {
         "@type": "EntryPoint",
-        "urlTemplate": "https://eden.design/?q={search_term_string}"
+        "urlTemplate": "/?q={search_term_string}"
       },
       "query-input": "required name=search_term_string"
     }
@@ -108,7 +105,7 @@
     "@type": "LocalBusiness",
     "name": "Studio",
     "description": "Digital design and management studio offering logo design, posters, thumbnails, event planning and social media management.",
-    "url": "https://eden.design/",
+    "url": "/",
     "telephone": "",
     "priceRange": "₹500 - ₹5000",
     "address": {

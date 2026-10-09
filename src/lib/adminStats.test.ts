@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDailySeries,
+  buildTrend,
   compareWindows,
   orderStatus,
   orderTime,
@@ -156,6 +157,48 @@ describe("compareWindows", () => {
     const trend = compareWindows(short, { days: 7 });
     expect(trend.recent).toBe(100);
     expect(trend.previous).toBe(0);
+  });
+});
+
+describe("buildTrend — the range the console lets you pick", () => {
+  /** 30 days of history, so every range the console offers has a period behind it. */
+  const orders = [
+    { totalPrice: 100, paidAmount: 100, createdAt: day(2) }, // this week
+    { totalPrice: 400, paidAmount: 400, createdAt: day(10) }, // the week before
+    { totalPrice: 800, paidAmount: 800, createdAt: day(20) }, // the fortnight before that
+  ];
+
+  it("charts exactly the range that was asked for", () => {
+    for (const days of [7, 14, 30, 90]) {
+      expect(buildTrend(orders, { days, now: NOW }).series).toHaveLength(days);
+    }
+  });
+
+  it("has a real comparison behind a short range, not a blank 'no earlier window'", () => {
+    const { trend } = buildTrend(orders, { days: 7, now: NOW });
+    // 100 this week against 400 the week before — a number, not `null`.
+    expect(trend.recent).toBe(100);
+    expect(trend.previous).toBe(400);
+    expect(trend.deltaPct).toBe(-75);
+  });
+
+  it("keeps the extra history out of the chart itself", () => {
+    const { series } = buildTrend(orders, { days: 7, now: NOW });
+    const charted = series.reduce((total, point) => total + point.collected, 0);
+    expect(charted).toBe(100);
+  });
+
+  it("still compares collected cash, never an unread receipt as zero", () => {
+    const { trend } = buildTrend(
+      [
+        { totalPrice: 1000, paidAmount: null, createdAt: day(1) },
+        { totalPrice: 300, paidAmount: 300, createdAt: day(9) },
+      ],
+      { days: 7, now: NOW },
+    );
+    expect(trend.recent).toBe(0);
+    expect(trend.previous).toBe(300);
+    expect(trend.deltaPct).toBe(-100);
   });
 });
 

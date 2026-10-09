@@ -75,6 +75,15 @@ const schema = defineSchema(
       logoLightColor: v.optional(v.string()),
       /** Logo text color for dark backgrounds. */
       logoDarkColor: v.optional(v.string()),
+      /**
+       * Public origin of the live site, e.g. "https://studio.example". Drives
+       * canonical URLs, OpenGraph/Twitter tags, structured data and the
+       * sitemap the console generates. Empty means "use whatever origin the
+       * page is being served from", which is right for previews.
+       */
+      siteUrl: v.optional(v.string()),
+      /** X/Twitter handle for `twitter:site`, e.g. "@studio". Optional. */
+      twitterHandle: v.optional(v.string()),
       socialLinks: v.optional(
         v.object({
           instagram: v.optional(v.string()),

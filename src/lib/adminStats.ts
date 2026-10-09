@@ -123,6 +123,28 @@ export interface TrendSummary {
 }
 
 /**
+ * Builds both halves of the trend panel: the points to chart, and the summary
+ * compared against the window immediately before them.
+ *
+ * The series is built **twice as long** as it is displayed so a short range can
+ * still be compared with the equally short period before it. Charting only the
+ * visible window would leave `compareWindows` with nothing behind it, and every
+ * 7-day view would read as "no earlier window to compare" — which is the bug
+ * this helper exists to prevent.
+ */
+export function buildTrend(
+  orders: readonly OrderLike[],
+  {
+    days,
+    now,
+    field = "collected",
+  }: { days: number; now: number; field?: "collected" | "booked" },
+): { series: DayPoint[]; trend: TrendSummary } {
+  const full = buildDailySeries(orders, { days: days * 2, now });
+  return { series: full.slice(-days), trend: compareWindows(full, { days, field }) };
+}
+
+/**
  * Compares the newest `days` points of a series against the `days` before them.
  *
  * A zero baseline yields `null` rather than Infinity or 100% — "up 100% from

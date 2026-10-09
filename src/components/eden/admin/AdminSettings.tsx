@@ -4,7 +4,17 @@ import { useContent } from "@/context/ContentProvider";
 import { useSettings } from "@/context/SettingsProvider";
 import { cn } from "@/lib/utils";
 import { useAction, useMutation } from "convex/react";
-import { CloudUpload, Loader2, Palette, Save, Sparkles, Trash2, Wand2 } from "lucide-react";
+import {
+  AtSign,
+  CloudUpload,
+  Globe,
+  Loader2,
+  Palette,
+  Save,
+  Sparkles,
+  Trash2,
+  Wand2,
+} from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -159,6 +169,8 @@ export function AdminSettings() {
     settings.brandTagline,
     settings.logoLightColor,
     settings.logoDarkColor,
+    settings.siteUrl,
+    settings.twitterHandle,
     settings.socialLinks.instagram,
     settings.socialLinks.twitter,
     settings.socialLinks.behance,
@@ -206,6 +218,8 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
   const [primaryColor, setPrimaryColor] = useState(settings.primaryColor);
   const [backgroundColor, setBackgroundColor] = useState(settings.backgroundColor);
   const [upiId, setUpiId] = useState(settings.upiId);
+  const [siteUrl, setSiteUrl] = useState(settings.siteUrl ?? "");
+  const [twitterHandle, setTwitterHandle] = useState(settings.twitterHandle ?? "");
   const [instagram, setInstagram] = useState(settings.socialLinks.instagram);
   const [twitter, setTwitter] = useState(settings.socialLinks.twitter);
   const [behance, setBehance] = useState(settings.socialLinks.behance);
@@ -241,6 +255,8 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
         brandTagline: brandTagline || undefined,
         logoLightColor: logoLightColor || undefined,
         logoDarkColor: logoDarkColor || undefined,
+        siteUrl,
+        twitterHandle,
       });
       toast.success("Website updated — live everywhere now.");
     } catch (e) {
@@ -868,6 +884,57 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
             <input value={linkedin} onChange={(e) => setLinkedin(e.target.value)} className={inputCls} placeholder="https://linkedin.com/company/…" />
           </label>
         </div>
+      </section>
+
+      <section className="clay space-y-4 p-6">
+        <div className="flex items-start gap-2.5">
+          <Globe className="mt-0.5 size-4 shrink-0 text-primary" />
+          <div>
+            <h3 className="font-display text-lg font-semibold">Domain and search</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              The address this studio actually lives at. It decides the canonical
+              links, the social preview card and the generated sitemap — no other
+              part of the site hardcodes a domain.
+            </p>
+          </div>
+        </div>
+
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium">Live site URL</span>
+          <input
+            value={siteUrl}
+            onChange={(e) => setSiteUrl(e.target.value)}
+            className={inputCls}
+            placeholder="https://your-studio.com"
+            inputMode="url"
+          />
+          <span className="mt-1.5 block text-[11px] leading-relaxed text-muted-foreground">
+            {siteUrl.trim()
+              ? `Canonical, OpenGraph and sitemap links will use ${siteUrl.trim().replace(/\/+$/, "")}.`
+              : "Left empty on purpose: links fall back to whichever address this page is served from, which is what a preview or staging copy should say."}
+          </span>
+        </label>
+
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium">X / Twitter handle (optional)</span>
+          <div className="relative">
+            <AtSign className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={twitterHandle}
+              onChange={(e) => setTwitterHandle(e.target.value)}
+              className={cn(inputCls, "pl-8")}
+              placeholder="studio"
+            />
+          </div>
+          <span className="mt-1.5 block text-[11px] leading-relaxed text-muted-foreground">
+            Used for twitter:site on shared links. Leave it empty and no handle is claimed.
+          </span>
+        </label>
+
+        <p className="clay-inset rounded-xl px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+          A ready-made sitemap.xml and robots.txt for this domain can be
+          downloaded from the Explanation tab.
+        </p>
       </section>
 
       <section className="clay space-y-4 p-6">

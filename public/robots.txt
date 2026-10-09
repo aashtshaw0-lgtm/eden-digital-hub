@@ -4,4 +4,8 @@ Disallow: /admin
 Disallow: /checkout
 Disallow: /portal
 
+# The Sitemap line must be an absolute URL, so it carries the studio's own
+# domain. Set the domain in the console (Website tab) and download a matching
+# robots.txt + sitemap.xml from the "Explanation" tab. Until then this relative
+# path still resolves for crawlers that fetch /robots.txt from the same origin.
 Sitemap: /sitemap.xml
