@@ -8,6 +8,8 @@ import { AdminCredits } from "@/components/eden/admin/AdminCredits";
 import { AdminCoupons } from "@/components/eden/admin/AdminCoupons";
 import { AdminServices } from "@/components/eden/admin/AdminServices";
 import { AdminProducts } from "@/components/eden/admin/AdminProducts";
+import { AdminGuide } from "@/components/eden/admin/AdminGuide";
+import { AdminRevenueTrend } from "@/components/eden/admin/AdminRevenueTrend";
 import { AdminRoles } from "@/components/eden/admin/AdminRoles";
 import { AdminStats } from "@/components/eden/admin/AdminStats";
 import { AuroraBackground, ShimmerText } from "@/components/eden/motion";
@@ -30,6 +32,8 @@ const TABS: { key: string; label: string; superOnly?: boolean }[] = [
   { key: "website", label: "Website" },
   { key: "words", label: "Words & copy" },
   { key: "calculator", label: "Profit split" },
+  // The console's own manual, last so it never crowds the daily boards.
+  { key: "guide", label: "Explanation" },
   { key: "roles", label: "Roles", superOnly: true },
 ];
 
@@ -76,7 +80,14 @@ export default function Admin() {
         ))}
       </nav>
 
-      {tab === "orders" && <AdminOrders />}
+      {tab === "orders" && (
+        <>
+          {/* The trend sits on the console's opening tab, where the numbers are
+              read, rather than following every board around. */}
+          <AdminRevenueTrend />
+          <AdminOrders />
+        </>
+      )}
       {tab === "credits" && <AdminCredits />}
       {tab === "coupons" && <AdminCoupons />}
       {tab === "inbox" && <AdminInbox />}
@@ -86,6 +97,7 @@ export default function Admin() {
       {tab === "website" && <AdminSettings />}
       {tab === "words" && <AdminContent />}
       {tab === "calculator" && <AdminCalculator />}
+      {tab === "guide" && <AdminGuide onJump={setTab} />}
       {tab === "roles" && role === "super_owner" && (
         <AdminRoles myUserId={user?._id ? String(user._id) : undefined} />
       )}

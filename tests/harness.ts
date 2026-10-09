@@ -3,11 +3,6 @@ import { vi } from "vitest";
 import type { Test } from "convex-test";
 import schema from "../src/convex/schema";
 
-// Import the pre-built mock (a different module path, so not intercepted by
-// the vi.mock below). Used to spread real authTables into the mock factory.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-import * as mockAuth from "__mocks__/@convex-dev/auth/server";
-
 /**
  * The Convex modules under test.
  *
@@ -123,21 +118,28 @@ if (!modules || Object.keys(modules).length === 0) {
  * with a mutable identity. Everything else — RBAC, rate limits, coupon rules,
  * transaction boundaries — is the shipped code under test.
  */
-const identity = { current: null as string | null };
+// `vi.mock` is hoisted above every import and every top-level binding in this
+// file, so the factory may not close over anything declared below it. Both the
+// shared identity and the pre-built auth mock therefore come from `vi.hoisted`
+// (and a dynamic import inside the factory); reading them directly from module
+// scope is the classic "Cannot access '…' before initialization" failure, which
+// is what used to stop every suite in this folder from loading at all.
+const { identity } = vi.hoisted(() => ({
+  identity: { current: null as string | null },
+}));
 
 // Partial mock: only `getAuthUserId` is stubbed. The rest of the module (notably
 // `authTables`, which the schema spreads) must stay real so the Convex schema
 // can be constructed.
 //
-// The pre-built mock (imported above) contains the real authTables and stubs for
-// everything else. We spread it and override getAuthUserId with our controllable
-// identity so signIn() can swap users between tests.
+// The pre-built mock (a different module path, so not intercepted by the mock
+// below) contains the real authTables and stubs for everything else. We spread
+// it and override getAuthUserId with our controllable identity so signIn() can
+// swap users between tests.
 vi.mock("@convex-dev/auth/server", async () => {
+  const mockAuth = await import("../__mocks__/@convex-dev/auth/server");
   return {
     ...mockAuth,
-    // Override the mock file's getAuthUserId so it reads from this harness's
-    // mutable identity (controlled by signIn below) instead of the mock file's
-    // own identity object.
     getAuthUserId: async () => identity.current,
   };
 });

@@ -1,5 +1,6 @@
 import { CountUp } from "@/components/eden/motion";
 import { api } from "@/convex/_generated/api";
+import { orderTotals } from "@/lib/adminStats";
 import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
 import { motion, useReducedMotion } from "framer-motion";
@@ -8,24 +9,30 @@ import { Hourglass, IndianRupee, PackageCheck, Users, type LucideIcon } from "lu
 /**
  * The numbers a manager wants the moment the console opens.
  *
- * Every figure is derived from the same queries the boards themselves read
- * (`orders.listAll`, `users.listAll`) rather than a separate counter table, so a
+ * Every figure comes from the same queries the boards below read
+ * (`orders.listAll`, `users.listAll`) rather than its own counter table, so a
  * stat can never drift from the list underneath it — and because Convex quotes
  * an identical subscription once, the strip adds no extra round-trips.
+ *
+ * The accents are mixed from the theme's own `--primary`, so a studio that
+ * re-colours the site from the Website tab re-colours its console too.
  */
 export function AdminStats({ onJump }: { onJump?: (tab: string) => void }) {
   const orders = useQuery(api.orders.listAll);
   const clients = useQuery(api.users.listAll);
   const reduced = useReducedMotion();
 
-  const rows = orders ?? [];
-  const pending = rows.filter((o) => (o.status ?? "pending") === "pending").length;
-  // Only amounts that actually resolved count as collected — an unread proof
-  // reports null, and silently treating that as zero rupees would understate it.
-  const collected = rows.reduce(
-    (sum, o) => sum + (typeof o.paidAmount === "number" ? o.paidAmount : 0),
-    0,
-  );
+  const totals = orderTotals(orders ?? []);
+
+  /** A wash of the live brand colour; the strength separates the cards. */
+  const tint = (percent: number) => ({
+    background: `color-mix(in oklab, var(--primary) ${percent}%, transparent)`,
+    color: "var(--primary)",
+  });
+  const alert = {
+    background: "color-mix(in oklab, var(--destructive) 14%, transparent)",
+    color: "var(--destructive)",
+  };
 
   const stats: {
     key: string;
@@ -36,6 +43,8 @@ export function AdminStats({ onJump }: { onJump?: (tab: string) => void }) {
     /** Tab this stat drills into, when one makes sense. */
     tab?: string;
     money?: boolean;
+    /** Percent of the brand colour behind the icon. */
+    tone: number;
     /** Draws the eye when something is actually waiting on a human. */
     urgent?: boolean;
   }[] = [
@@ -43,26 +52,29 @@ export function AdminStats({ onJump }: { onJump?: (tab: string) => void }) {
       key: "orders",
       label: "Orders",
       hint: "in the book",
-      value: rows.length,
+      value: totals.total,
       icon: PackageCheck,
       tab: "orders",
+      tone: 12,
     },
     {
       key: "pending",
       label: "Awaiting",
-      hint: pending > 0 ? "need a decision" : "nothing waiting",
-      value: pending,
+      hint: totals.pending > 0 ? "need a decision" : "nothing waiting",
+      value: totals.pending,
       icon: Hourglass,
       tab: "orders",
-      urgent: pending > 0,
+      tone: 22,
+      urgent: totals.pending > 0,
     },
     {
       key: "collected",
       label: "Collected",
       hint: "read off receipts",
-      value: collected,
+      value: totals.collected,
       icon: IndianRupee,
       money: true,
+      tone: 28,
     },
     {
       key: "clients",
@@ -71,6 +83,7 @@ export function AdminStats({ onJump }: { onJump?: (tab: string) => void }) {
       value: clients?.length ?? 0,
       icon: Users,
       tab: "products",
+      tone: 16,
     },
   ];
 
@@ -87,14 +100,17 @@ export function AdminStats({ onJump }: { onJump?: (tab: string) => void }) {
         const inner = (
           <>
             <span
-              className={cn(
-                "tint flex size-8 items-center justify-center rounded-xl",
-                stat.urgent && "text-primary",
-              )}
+              className="flex size-8 items-center justify-center rounded-xl"
+              style={stat.urgent ? alert : tint(stat.tone)}
             >
               <Icon className="size-4" />
             </span>
-            <p className="font-display mt-3 text-2xl font-semibold tabular-nums">
+            <p
+              className={cn(
+                "font-display mt-3 text-2xl font-semibold tabular-nums",
+                stat.key === "collected" && "text-primary",
+              )}
+            >
               <CountUp to={stat.value} prefix={stat.money ? "₹" : ""} />
             </p>
             <p className="mt-0.5 text-xs font-medium">{stat.label}</p>
