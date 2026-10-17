@@ -91,17 +91,18 @@ export function TextHoverEffect({
         dominantBaseline="middle"
         textLength={264}
         lengthAdjust="spacingAndGlyphs"
+        pathLength={1}
         strokeWidth={0.5}
         fill="transparent"
-        stroke="currentColor"
-        className="text-border [stroke:color-mix(in_oklab,var(--border)_90%,transparent)]"
-        initial={reduced ? false : { strokeDashoffset: 1, strokeDasharray: 1, pathLength: 1 }}
+        strokeDasharray={reduced ? undefined : 1}
+        initial={reduced ? undefined : { strokeDashoffset: 1 }}
         animate={{ strokeDashoffset: 0 }}
         transition={{ duration: reduced ? 0 : 2.2, ease: [0.22, 1, 0.36, 1] }}
         style={{
           fontSize: 36,
           fontWeight: 700,
           letterSpacing: "0.01em",
+          stroke: "var(--border)",
           opacity: hovered ? 0.6 : 0.4,
           transition: "opacity 400ms ease",
         }}
