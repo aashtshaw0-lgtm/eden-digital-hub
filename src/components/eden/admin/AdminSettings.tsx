@@ -1,5 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { AdminBrandKit } from "@/components/eden/admin/AdminBrandKit";
+import { AdminSupabase } from "@/components/eden/admin/AdminSupabase";
 import { useContent } from "@/context/ContentProvider";
 import { useSettings } from "@/context/SettingsProvider";
 import { cn } from "@/lib/utils";
@@ -936,6 +937,8 @@ function SettingsForm({ settings }: { settings: ReturnType<typeof useSettings> }
           downloaded from the Explanation tab.
         </p>
       </section>
+
+      <AdminSupabase />
 
       <section className="clay space-y-4 p-6">
         <div>
