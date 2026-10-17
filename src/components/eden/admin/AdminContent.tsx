@@ -37,7 +37,7 @@ function ContentForm({ overrides }: { overrides: Record<string, string> }) {
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       CONTENT_FIELDS.map((f) => [f.key, overrides[f.key] ?? f.default]),
-    ),
+    )
   );
   const [activeGroup, setActiveGroup] = useState(CONTENT_GROUPS[0]?.id ?? "brand");
   const [query, setQuery] = useState("");
@@ -49,16 +49,16 @@ function ContentForm({ overrides }: { overrides: Record<string, string> }) {
   const searching = query.trim().length > 0;
   const needle = query.trim().toLowerCase();
 
+  // Shared search filter used for the group view too. needle is already
+  // lowercased before it is compared, so we search with it directly.
   const visibleFields = useMemo(() => {
-    if (searching) {
-      return CONTENT_FIELDS.filter(
-        (f) =>
-          f.label.toLowerCase().includes(needle) ||
-          f.key.toLowerCase().includes(needle) ||
-          (draft[f.key] ?? "").toLowerCase().includes(needle),
-      );
-    }
-    return CONTENT_FIELDS.filter((f) => f.groupId === activeGroup);
+    return (
+      CONTENT_GROUPS.find((g) => g.id === activeGroup)?.fields ?? []
+    ).filter((f) =>
+      f.label.toLowerCase().includes(needle) ||
+      f.key.toLowerCase().includes(needle) ||
+      (draft[f.key] ?? "").toLowerCase().includes(needle),
+    );
   }, [searching, needle, activeGroup, draft]);
 
   const setField = (key: string, value: string) =>
@@ -138,7 +138,7 @@ function ContentForm({ overrides }: { overrides: Record<string, string> }) {
         {!searching && (
           <div className="flex flex-wrap gap-2">
             {CONTENT_GROUPS.map((group) => {
-              const groupEdits = group.fields.filter((f) => overrides[f.key]?.trim()).length;
+              const groupEdits = (group.fields ?? []).filter((f) => overrides[f.key]?.trim()).length;
               return (
                 <button
                   key={group.id}
@@ -148,7 +148,7 @@ function ContentForm({ overrides }: { overrides: Record<string, string> }) {
                     activeGroup === group.id && "bg-primary text-primary-foreground",
                   )}
                 >
-                  {group.title}
+                  {group.id}
                   {groupEdits > 0 && (
                     <span className="ml-1.5 tabular-nums opacity-70">·{groupEdits}</span>
                   )}
@@ -173,11 +173,7 @@ function ContentForm({ overrides }: { overrides: Record<string, string> }) {
                     <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       {field.label}
                     </span>
-                    {searching && (
-                      <span className="text-[10px] text-muted-foreground/70">
-                        {field.groupTitle}
-                      </span>
-                    )}
+
                     {overridden && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
                         <Check className="size-2.5" /> edited
@@ -192,23 +188,12 @@ function ContentForm({ overrides }: { overrides: Record<string, string> }) {
                       </button>
                     )}
                   </div>
-                  {field.type === "textarea" ? (
-                    <textarea
-                      value={value}
-                      onChange={(e) => setField(field.key, e.target.value)}
-                      rows={3}
-                      className={inputCls}
-                    />
-                  ) : (
-                    <input
-                      value={value}
-                      onChange={(e) => setField(field.key, e.target.value)}
-                      className={inputCls}
-                    />
-                  )}
-                  {field.hint && (
-                    <p className="text-[11px] text-muted-foreground">{field.hint}</p>
-                  )}
+                  <textarea
+                    value={value}
+                    onChange={(e) => setField(field.key, e.target.value)}
+                    rows={3}
+                    className={inputCls}
+                  />
                 </div>
               );
             })}

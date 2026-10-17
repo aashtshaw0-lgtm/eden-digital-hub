@@ -7,13 +7,13 @@ import { useEffect, useId, useRef, useState } from "react";
  * exactly where the cursor rests.
  *
  * Three layers share the same geometry so they register perfectly:
- *  1. the outlined text that animates in and fades slightly on hover,
- *  2. the gradient stop list (fixed — always rendered, never conditional),
+ *  1. the outlined text that animates in and softens on hover,
+ *  2. the gradient stops, always rendered,
  *  3. the same text stroked with that gradient, revealed through a radial mask
- *     that tracks the pointer.
+ *     that follows the pointer.
  *
- * Sizes are pinned with `textLength`, so any title length the console allows
- * fits the same box instead of overflowing the 300×100 viewBox.
+ * `textLength` keeps the word centred in the viewBox whatever title length the
+ * console allows, so it never overflows the 300×100 box.
  */
 export function TextHoverEffect({
   text,
@@ -97,7 +97,10 @@ export function TextHoverEffect({
         strokeDasharray={reduced ? undefined : 1}
         initial={reduced ? undefined : { strokeDashoffset: 1 }}
         animate={{ strokeDashoffset: 0 }}
-        transition={{ duration: reduced ? 0 : 2.2, ease: [0.22, 1, 0.36, 1] }}
+        transition={{
+          duration: reduced ? 0 : 2.2,
+          ease: [0.22, 1, 0.36, 1],
+        }}
         style={{
           fontSize: 36,
           fontWeight: 700,

@@ -28,6 +28,8 @@ import { ArrowRight, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { Link } from "react-router";
+import { TextGenerateEffect } from "@/components/eden/TextGenerateEffect";
+import { LensCard } from "@/components/eden/LensCard";
 
 // Fallback accent words. The studio's own name is substituted at render time,
 // so the headline never hardcodes a brand that isn't yours.
@@ -330,6 +332,61 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── Motion showcase ──────────────────────────────────
+          Words, cards and a loupe move on the page so the hero's promise
+          ("Made to move") is something you can watch instead of just read.
+          Everything in this section is configurable from the console. */}
+      <section id="motion-showcase" className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
+        <Reveal>
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="font-display text-xs font-medium uppercase tracking-[0.2em] text-primary">
+                {t("home.motionEyebrow")}
+              </p>
+              <h2 className="font-display mt-2 text-3xl font-semibold sm:text-4xl">
+                {t("home.motion.title")}
+              </h2>
+              <p className="mt-2 text-base leading-relaxed text-muted-foreground">
+                {t("home.motion.subtitle")}
+              </p>
+            </div>
+            <a
+              href="#portfolio"
+              className="clay-sm rounded-full px-5 py-2.5 text-sm font-semibold transition hover:text-primary hover:shadow-md"
+            >
+              See the work <ArrowRight className="size-4" />
+            </a>
+          </div>
+        </Reveal>
+
+        <div className="mt-10 grid gap-8 lg:grid-cols-2">
+          {/* ── TextGenerateEffect ── */}
+          <div className="rounded-[1.35rem] bg-card/60 p-6 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-primary">
+              Words arrange themselves
+            </p>
+            <div className="mt-4">
+              <TextGenerateEffect
+                words={t("home.motion.statement")}
+                className="mt-4 font-display text-xl leading-snug text-neutral-800 sm:text-2xl"
+              />
+            </div>
+          </div>
+
+          {/* ── LensCard ── */}
+          <div className="rounded-[1.35rem] bg-card/60 p-6 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-primary">
+              The detail is where craft lives
+            </p>
+            <LensCard
+              src="https://images.unsplash.com/photo-1713869820987-519844949a8a?q=80&w=3500&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+              alt="A hand holding a sketch"
+              title={t("home.motion.eyebrow")}
+              body={t("home.motion.lensCaption")}
+            />
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

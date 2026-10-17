@@ -7,34 +7,30 @@ import { useRef, useState, type ReactNode } from "react";
  * the pointer — a jeweller's loupe over the artwork.
  *
  * The zoomed layer is a real second render of the children inside a scaled
- * wrapper, so whatever is inside stays crisp at `zoomFactor`× rather than being
- * a bitmap upscale. Hover state can be lifted into a parent (for blur effects,
- * as the demo card does) or left local.
+ * wrapper, so whatever sits inside stays crisp at `zoomFactor`× rather than a
+ * bitmap upscale. Hover needs a mouse: on touch, tap the card to zoom.
  */
 export function Lens({
   children,
   zoomFactor = 1.6,
   lensSize = 150,
   position = { x: 200, y: 150 },
+  className,
   hovering,
   setHovering,
-  className,
 }: {
   children: ReactNode;
   zoomFactor?: number;
   lensSize?: number;
-  /** Anchor for the static (always-on) lens. */
   position?: { x: number; y: number };
-  /** When true the lens sits at `position` instead of tracking the pointer. */
-  isStatic?: boolean;
+  className?: string;
   hovering?: boolean;
   setHovering?: (hovering: boolean) => void;
-  className?: string;
 }) {
   const [localHovering, setLocalHovering] = useState(false);
-  const isHovering = hovering ?? localHovering;
-  const toggle = setHovering ?? setLocalHovering;
 
+  const isHovering = hovering !== undefined ? hovering : localHovering;
+  const setIsHovering = setHovering ?? setLocalHovering;
   const [mousePosition, setMousePosition] = useState({ x: 200, y: 150 });
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -42,14 +38,13 @@ export function Lens({
     setMousePosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   };
 
-  const mask = `radial-gradient(circle ${lensSize / 2}px at ${position.x}px ${position.y}px, black 100%, transparent 100%)`;
   const trackingMask = `radial-gradient(circle ${lensSize / 2}px at ${mousePosition.x}px ${mousePosition.y}px, black 100%, transparent 100%)`;
 
   return (
     <div
       className={cn("relative overflow-hidden rounded-2xl", className)}
-      onMouseEnter={() => toggle(true)}
-      onMouseLeave={() => toggle(false)}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
       onMouseMove={handleMouseMove}
     >
       {children}
@@ -81,9 +76,9 @@ export function Lens({
 }
 
 /**
- * The lens as a finished piece of page furniture: a themed card with an
- * image to inspect and a short caption. The small "move your cursor" hint
- * disappears as soon as the visitor has actually hovered once.
+ * A finished piece of page furniture: a themed card with an image to inspect
+ * and a short caption. The "move your cursor" hint fades after the first
+ * hover, and tapping works where there is no cursor.
  */
 export function LensCard({
   src,
@@ -98,8 +93,6 @@ export function LensCard({
   body: string;
   className?: string;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null); // keeps the card a single focus target
-  void containerRef;
   const [hovering, setHovering] = useState(false);
 
   return (
@@ -109,12 +102,16 @@ export function LensCard({
         className,
       )}
     >
-      <Lens hovering={hovering} setHovering={setHovering} lensSize={140}>
+      <Lens
+        hovering={hovering}
+        setHovering={setHovering}
+        lensSize={140}
+      >
         <img
           src={src}
           alt={alt}
-          width={800}
-          height={600}
+          width={1200}
+          height={900}
           loading="lazy"
           decoding="async"
           className="aspect-4/3 w-full rounded-xl object-cover"
