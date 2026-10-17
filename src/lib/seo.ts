@@ -36,9 +36,11 @@ function setMeta(name: string, content: string, attr: "name" | "property" = "nam
 /**
  * Sets (or creates) the one element for this `rel`.
  *
- * Matched on `rel`, never on `href`: the shipped `index.html` already carries a
- * relative `<link rel="canonical">`, and looking the tag up by URL would miss it
- * and leave two competing canonicals in the head — with the stale one winning.
+ * The shipped `index.html` deliberately carries no static `<link rel="canonical">`
+ * (see the comment there), so the tag is usually created right here on first
+ * use. Matched on `rel`, never on `href`: looking it up by URL would miss an
+ * existing canonical pointing elsewhere and leave two competing canonicals in
+ * the head — with the stale one winning.
  */
 function setRelLink(rel: string, href: string) {
   let el = document.head.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
@@ -101,7 +103,7 @@ export function useSeo(opts: {
       setMeta("og:url", absolute(base, canonical ?? "/"), "property");
     }
     if (ogImage) {
-      // Callers pass a route like "/og-image.jpg"; the domain is added here.
+      // Callers pass a route like "/og-image.png"; the domain is added here.
       const image = absolute(base, ogImage);
       setMeta("og:image", image, "property");
       setMeta("twitter:image", image);

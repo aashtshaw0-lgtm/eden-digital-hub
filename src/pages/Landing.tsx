@@ -50,7 +50,7 @@ export default function Landing() {
     title: t("seo.home.title"),
     description: t("seo.home.description"),
     canonical: "/",
-    ogImage: "/og-image.jpg",
+    ogImage: "/og-image.png",
     jsonLd: {
       "@context": "https://schema.org",
       "@graph": [
