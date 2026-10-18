@@ -215,7 +215,6 @@ export function CardsCarousel({
             <ArrowRight className="size-5" />
           </button>
         </div>
-      </div>
 
         {isOpen && (
           <div
