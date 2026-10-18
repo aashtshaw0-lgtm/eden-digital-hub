@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { vi } from "vitest";
+import { beforeEach, vi } from "vitest";
 import type { Test } from "convex-test";
 import schema from "../src/convex/schema";
 
@@ -124,9 +124,13 @@ if (!modules || Object.keys(modules).length === 0) {
 // (and a dynamic import inside the factory); reading them directly from module
 // scope is the classic "Cannot access '…' before initialization" failure, which
 // is what used to stop every suite in this folder from loading at all.
-const { identity } = vi.hoisted(() => ({
-  identity: { current: null as string | null },
-}));
+let identity: { current: string | null } = { current: null };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.resetModules();
+  identity = { current: null };
+});
 
 // Partial mock: only `getAuthUserId` is stubbed. The rest of the module (notably
 // `authTables`, which the schema spreads) must stay real so the Convex schema

@@ -1,9 +1,8 @@
 import { motion } from "framer-motion";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useReducedMotion } from "framer-motion";
-import React from "react";
 import { useOutsideClick } from "@/hooks/use-outside-click";
 
 export interface CarouselCardData {
@@ -60,7 +59,8 @@ export function CardsCarousel({
     const track = trackRef.current;
     if (!track) return;
     track.scrollLeft = 0;
-    checkScrollability();
+    setCanScrollLeft(track.scrollLeft > 0);
+    setCanScrollRight(track.scrollLeft < track.scrollWidth - track.clientWidth);
   }, [items.length]);
 
   const checkScrollability = () => {
@@ -94,7 +94,7 @@ export function CardsCarousel({
   };
 
   useOutsideClick(
-    backdropRef,
+    trackRef,
     (event) => {
       // The backdrop click only closes a card when it is *its own* backdrop.
       if (event.target instanceof HTMLElement && event.target.closest("[data-carousel-modal]")) {
@@ -156,8 +156,7 @@ export function CardsCarousel({
     <CardsCarouselContext.Provider
       value={{ onCardClose: closeCard, currentCard, isOpen }}
     >
-      <div className="relative w-full">
-        <div
+      <div className="relative w-full">        <div
           ref={trackRef}
           className="flex w-full snap-x snap-mandatory overflow-x-scroll overscroll-x-auto scroll-smooth py-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:py-16"
           onScroll={checkScrollability}
@@ -200,79 +199,73 @@ export function CardsCarousel({
             ))}
           </div>
         </div>
+      </div>
 
         <div className="flex justify-center gap-4">
-          <button
-            type="button"
-            aria-label="Scroll carousel left"
-            className="tap relative z-20 flex h-10 w-10 items-center justify-center rounded-full clay-sm text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
-            onClick={() => scrollByAmount(-1)}
-            disabled={!canScrollLeft}
-          >
-            <ArrowLeft className="size-5" />
-          </button>
+          <span className="sr-only">Keyboard arrow navigation</span>
           <button
             type="button"
             aria-label="Scroll carousel right"
             className="tap relative z-20 flex h-10 w-10 items-center justify-center rounded-full clay-sm text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
             onClick={() => scrollByAmount(1)}
             disabled={!canScrollRight}
+            aria-disabled={!canScrollRight}
+            tabIndex={canScrollRight ? 0 : -1}
           >
             <ArrowRight className="size-5" />
           </button>
         </div>
       </div>
 
-      {/* ── modal ── */}
-      {isOpen && (
-        <div
-          data-carousel-modal
-          className="fixed inset-0 z-[80] flex h-full w-full items-end justify-center overflow-y-auto bg-black/55 p-4 backdrop-blur-sm sm:items-center sm:p-0"
-        >
+        {isOpen && (
           <div
             data-carousel-modal
-            className="clay relative w-full max-w-2xl overflow-hidden rounded-[1.35rem] shadow-2xl"
+            className="fixed inset-0 z-[80] flex h-full w-full items-end justify-center overflow-y-auto bg-black/55 p-4 backdrop-blur-sm sm:items-center sm:p-0"
           >
-            <button
-              type="button"
-              data-close-button
-              aria-label="Close card"
-              className="tap absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full clay-sm text-muted-foreground transition-colors hover:text-foreground"
-              onClick={closeCard}
+            <div
+              data-carousel-modal
+              className="clay relative w-full max-w-2xl overflow-hidden rounded-[1.35rem] shadow-2xl"
             >
-              <ArrowRight className="size-5 rotate-180" />
-            </button>
-
-            <div className="px-6 pt-12 pb-8 sm:px-10 sm:pt-16 sm:pb-10">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-primary">
-                    {currentCard?.category}
-                  </p>
-                  <h2 className="mt-2 font-display text-2xl font-semibold">
-                    {currentCard?.title}
-                  </h2>
-                </div>
-                <button
-                  type="button"
-                  data-close-button
-                  aria-label="Close card"
-                  className="tap shrink-0 flex h-8 w-8 items-center justify-center rounded-full clay-sm text-muted-foreground transition-colors hover:text-foreground"
-                  onClick={closeCard}
-                >
-                  <ArrowRight className="size-5 rotate-180" />
-                </button>
-              </div>
-
-              <div
-                data-carousel-modal
-                className="mt-6 overflow-hidden rounded-2xl bg-muted/50 p-5"
+              <button
+                type="button"
+                data-close-button
+                aria-label="Close card"
+                className="tap absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full clay-sm text-muted-foreground transition-colors hover:text-foreground"
+                onClick={closeCard}
               >
-                {currentCard?.content ?? null}
+                <ArrowRight className="size-5 rotate-180" />
+              </button>
+
+              <div className="px-6 pt-12 pb-8 sm:px-10 sm:pt-16 sm:pb-10">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-primary">
+                      {currentCard?.category}
+                    </p>
+                    <h2 className="mt-2 font-display text-2xl font-semibold">
+                      {currentCard?.title}
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    data-close-button
+                    aria-label="Close card"
+                    className="tap shrink-0 flex h-8 w-8 items-center justify-center rounded-full clay-sm text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={closeCard}
+                  >
+                    <ArrowRight className="size-5 rotate-180" />
+                  </button>
+                </div>
+
+                <div
+                  data-carousel-modal
+                  className="mt-6 overflow-hidden rounded-2xl bg-muted/50 p-5"
+                >
+                  {currentCard?.content ?? null}
+                </div>
               </div>
             </div>
           </div>
-        </div>
       )}
     </CardsCarouselContext.Provider>
   );

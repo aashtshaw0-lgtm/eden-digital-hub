@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 /**
  * Reveals a magnified copy of `children` through a circular mask that follows
@@ -14,7 +14,6 @@ export function Lens({
   children,
   zoomFactor = 1.6,
   lensSize = 150,
-  position = { x: 200, y: 150 },
   className,
   hovering,
   setHovering,
@@ -22,7 +21,6 @@ export function Lens({
   children: ReactNode;
   zoomFactor?: number;
   lensSize?: number;
-  position?: { x: number; y: number };
   className?: string;
   hovering?: boolean;
   setHovering?: (hovering: boolean) => void;
@@ -31,7 +29,7 @@ export function Lens({
 
   const isHovering = hovering !== undefined ? hovering : localHovering;
   const setIsHovering = setHovering ?? setLocalHovering;
-  const [mousePosition, setMousePosition] = useState({ x: 200, y: 150 });
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
