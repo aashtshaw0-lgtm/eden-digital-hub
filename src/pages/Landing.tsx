@@ -12,9 +12,7 @@ import { useContent } from "@/context/ContentProvider";
 import { serviceIcon } from "@/components/eden/serviceIcons";
 import { Portfolio3D } from "@/components/eden/Portfolio3D";
 
-import { SiteLogo } from "@/components/eden/SiteLogo";
 import { Reveal } from "@/components/eden/Reveal";
-import { FloatingOrb } from "@/components/eden/FloatingOrb";
 import {
   AuroraBackground,
   CountUp,
@@ -93,21 +91,6 @@ export default function Landing() {
     <main className="relative min-h-dvh overflow-hidden">
       {/* Drifting colour field + paper grain, behind the whole page */}
       <AuroraBackground />
-
-      {/* Ambient 3D orbs in background */}
-      <FloatingOrb size={400} speed={20} opacity={0.15} />
-      <FloatingOrb size={300} speed={25} opacity={0.12} className="right-0 top-20" />
-      <FloatingOrb size={250} speed={18} opacity={0.1} className="left-10 bottom-20" />
-
-      {/* ── Wordmark ────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.04 }}
-        className="relative z-10 flex justify-center px-4 pt-28 sm:pt-36"
-      >
-        <SiteLogo variant="light" size="lg" className="w-56 sm:w-72" />
-      </motion.div>
 
       {/* ── Hero ─────────────────────────────────────────── */}
       <section className="relative z-10 mx-auto flex w-full max-w-6xl flex-col items-center px-4 pb-16 pt-32 text-center sm:px-6 sm:pt-40">

@@ -3,48 +3,61 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-  <link rel="apple-touch-icon" href="/logo.svg" />
+  <!--
+    Placeholder app icon — an abstract mark, no lettering. The live site swaps
+    this for the uploaded logo in SettingsProvider, so it only shows before a
+    logo exists.
+  -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='20' fill='%2314110f'/%3E%3Ccircle cx='48' cy='48' r='18' fill='none' stroke='%23f4efe6' stroke-width='7'/%3E%3C%2Fsvg%3E" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='20' fill='%2314110f'/%3E%3Ccircle cx='48' cy='48' r='18' fill='none' stroke='%23f4efe6' stroke-width='7'/%3E%3C%2Fsvg%3E" />
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Eden - Digital Design & Management</title>
+  <!--
+    Placeholder metadata only. The live site replaces the title, description and
+    OpenGraph tags per route from the CMS (see src/lib/seo.ts), and uses the
+    studio name set in Words & copy.
+  -->
+  <title>Digital design & management studio</title>
   <meta name="description"
-    content="Eden is a digital design & management studio. Buy logos, posters, commercial designs, thumbnails and event banners — or hand over event planning and social media management. Three transparent tiers, instant AI help, live managers." />
+    content="A digital design & management studio. Logos, posters, commercial designs, thumbnails and event banners — plus event planning and social media management. Three transparent tiers, instant AI help, live managers." />
   <meta name="keywords"
     content="logo design, poster design, commercial design, YouTube thumbnails, event banners, event planning, social media management, digital design studio, graphic design India" />
-  <meta name="author" content="Eden Studio" />
-  <meta name="generator" content="Eden" />
+  <meta name="author" content="Studio" />
+  <meta name="generator" content="Freebuff" />
   <meta name="theme-color" content="#f6f2ea" />
   <meta name="msapplication-TileColor" content="#f6f2ea" />
-  <meta name="msapplication-config" content="/browserconfig.xml" />
 
   <!-- Google Search Console -->
   <meta name="google-site-verification" content="OzAqXrwD-LSgNIp9d9CDPaJ9V_r6hk2TCMGyaxHwWFg" />
 
   <!-- OpenGraph -->
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Eden" />
-  <meta property="og:title" content="Eden - Digital Design & Management" />
+  <meta property="og:site_name" content="Studio" />
+  <meta property="og:title" content="Digital design & management studio" />
   <meta property="og:description"
     content="Logos, posters, thumbnails, banners, event planning & social media management — three honest tiers on everything, briefed in one form." />
-  <meta property="og:image" content="https://eden.design/og-image.jpg" />
+  <meta property="og:image" content="/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:locale" content="en_IN" />
-  <meta property="og:url" content="https://eden.design/" />
+  <meta property="og:url" content="/" />
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Eden - Digital Design & Management" />
+  <meta name="twitter:title" content="Digital design & management studio" />
   <meta name="twitter:description"
     content="Handcrafted design and managed execution — with three transparent tiers on every service." />
-  <meta name="twitter:image" content="https://eden.design/og-image.jpg" />
-  <meta name="twitter:site" content="@eden_design" />
-  <meta name="twitter:creator" content="@eden_design" />
+  <meta name="twitter:image" content="/og-image.png" />
 
-  <!-- Canonical -->
-  <link rel="canonical" href="https://eden.design/" />
+  <!--
+    No static <link rel="canonical"> on purpose — and none may be added:
+    src/lib/seo.ts creates it at runtime from the domain stored in the console
+    (Website tab), so nothing here names a domain the studio has not claimed.
+    A root-relative href="/" would also make Vite read the project directory as
+    an asset and fail the production build (EISDIR). og:url and the twitter:site
+    handle are filled in the same way. Relative URLs in JSON-LD are resolved by
+    crawlers against the page they were served from.
+  -->
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -58,17 +71,11 @@
   {
     "@context": "https://schema.org",
     "@type": "Organization",
-    "name": "Eden",
-    "url": "https://eden.design/",
-    "logo": "https://eden.design/logo.svg",
+    "name": "Studio",
+    "url": "/",
+    "logo": "/logo.svg",
     "description": "Digital design & management studio selling one-off creative products and ongoing services.",
     "foundingDate": "2024",
-    "sameAs": [
-      "https://instagram.com/eden_design",
-      "https://twitter.com/eden_design",
-      "https://behance.net/eden_design",
-      "https://linkedin.com/company/eden-design"
-    ],
     "contactPoint": {
       "@type": "ContactPoint",
       "contactType": "customer service",
@@ -80,13 +87,13 @@
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "name": "Eden",
-    "url": "https://eden.design/",
+    "name": "Studio",
+    "url": "/",
     "potentialAction": {
       "@type": "SearchAction",
       "target": {
         "@type": "EntryPoint",
-        "urlTemplate": "https://eden.design/?q={search_term_string}"
+        "urlTemplate": "/?q={search_term_string}"
       },
       "query-input": "required name=search_term_string"
     }
@@ -96,9 +103,9 @@
   {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
-    "name": "Eden Studio",
+    "name": "Studio",
     "description": "Digital design and management studio offering logo design, posters, thumbnails, event planning and social media management.",
-    "url": "https://eden.design/",
+    "url": "/",
     "telephone": "",
     "priceRange": "₹500 - ₹5000",
     "address": {
@@ -113,12 +120,12 @@
     }
   }
   </script>
-  <script type="module" crossorigin src="/assets/index-ByQJ9HDU.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/react-vendor-BRum-V1Y.js">
-  <link rel="modulepreload" crossorigin href="/assets/framer-motion-DXDUqTb9.js">
-  <link rel="modulepreload" crossorigin href="/assets/radix-ui-DCHsncdJ.js">
-  <link rel="modulepreload" crossorigin href="/assets/charts-DKZqch_n.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-qfL0ZJWR.css">
+  <script type="module" crossorigin src="/assets/index-XEGI3Ekr.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/react-vendor-D-VhoVOU.js">
+  <link rel="modulepreload" crossorigin href="/assets/framer-motion-D_rUqzgR.js">
+  <link rel="modulepreload" crossorigin href="/assets/radix-ui-CQVFoc0x.js">
+  <link rel="modulepreload" crossorigin href="/assets/charts-B-XSvKDK.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-X9li71EZ.css">
 </head>
 
 

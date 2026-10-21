@@ -1,57 +1,62 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Placeholder origin — replace "https://example.com" with the studio's real
+  domain before submitting this file to search engines.
+
+  The console can generate the finished file for you: open /admin, go to the
+  "Explanation" tab, set the domain in the Website tab first, then use
+  "Download sitemap.xml". Drop the result over this file in public/.
+
+  Why a placeholder and not a real domain: the shipped value used to be the
+  template author's domain, which would have told crawlers that this site
+  lives somewhere it does not. "example.com" is reserved for exactly this.
+-->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
   <url>
-    <loc>https://eden.design/</loc>
-    <lastmod>2026-10-05</lastmod>
+    <loc>https://example.com/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://eden.design/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://example.com/" />
   </url>
   <url>
-    <loc>https://eden.design/services</loc>
-    <lastmod>2026-10-05</lastmod>
+    <loc>https://example.com/services</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://eden.design/services" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://example.com/services" />
   </url>
   <url>
-    <loc>https://eden.design/products</loc>
-    <lastmod>2026-10-05</lastmod>
+    <loc>https://example.com/products</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://eden.design/products" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://example.com/products" />
   </url>
   <url>
-    <loc>https://eden.design/credits</loc>
-    <lastmod>2026-10-05</lastmod>
+    <loc>https://example.com/credits</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://eden.design/credits" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://example.com/credits" />
   </url>
   <url>
-    <loc>https://eden.design/legal</loc>
-    <lastmod>2026-10-05</lastmod>
+    <loc>https://example.com/legal</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://eden.design/legal" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://example.com/legal" />
   </url>
   <url>
-    <loc>https://eden.design/legal?tab=privacy</loc>
-    <lastmod>2026-10-05</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://eden.design/legal?tab=terms</loc>
-    <lastmod>2026-10-05</lastmod>
+    <loc>https://example.com/legal?tab=privacy</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://eden.design/legal?tab=refunds</loc>
-    <lastmod>2026-10-05</lastmod>
+    <loc>https://example.com/legal?tab=terms</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://example.com/legal?tab=refunds</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
