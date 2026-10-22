@@ -1,3 +1,19 @@
+import { Portfolio3D } from "@/components/eden/Portfolio3D";
+import { Reveal } from "@/components/eden/Reveal";
+import { Lens } from "@/components/eden/LensCard";
+import {
+  AuroraBackground,
+  CountUp,
+  Magnetic,
+  Marquee,
+  ShimmerText,
+  TiltCard,
+} from "@/components/eden/motion";
+import { serviceIcon } from "@/components/eden/serviceIcons";
+import { api } from "@/convex/_generated/api";
+import { useContent } from "@/context/ContentProvider";
+import { useSettings } from "@/context/SettingsProvider";
+import { inr } from "@/lib/format";
 import {
   absolute,
   getOrganizationSchema,
@@ -5,16 +21,126 @@ import {
   resolveSiteUrl,
   useSeo,
 } from "@/lib/seo";
-import { useContent } from "@/context/ContentProvider";
-import { motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ArrowRight, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { Sparkles, Leaf, Grid3X3, User } from "lucide-react";
-import "@/index.css";
+import { useQuery } from "convex/react";
+import { cn } from "@/lib/utils";
 
+/** Reveals a paragraph word by word as it scrolls into view. */
+function WordReveal({
+  words,
+  className,
+  duration = 0.5,
+  step = 0.08,
+}: {
+  words: string;
+  className?: string;
+  duration?: number;
+  step?: number;
+}) {
+  const reduced = useReducedMotion();
+
+  if (reduced) {
+    return (
+      <p className={cn("text-base leading-relaxed text-muted-foreground sm:text-lg", className)}>
+        {words}
+      </p>
+    );
+  }
+
+  const list = words.split(" ");
+
+  return (
+    <motion.div
+      className={cn("text-base leading-relaxed text-muted-foreground sm:text-lg", className)}
+      initial="hidden"
+      whileInView="shown"
+      viewport={{ once: true, margin: "-40px" }}
+      variants={{ hidden: {}, shown: {} }}
+    >
+      {list.map((word, i) => (
+        <motion.span
+          key={`${word}-${i}`}
+          variants={{
+            hidden: { opacity: 0, filter: "blur(10px)" },
+            shown: {
+              opacity: 1,
+              filter: "blur(0px)",
+              transition: { duration, delay: i * step },
+            },
+          }}
+        >
+          {word}{" "}
+        </motion.span>
+      ))}
+    </motion.div>
+  );
+}
+
+/** An image tile you can zoom into with a magnifying lens. */
+function LensFigure({
+  src,
+  alt,
+  title,
+  body,
+  className,
+}: {
+  src: string;
+  alt: string;
+  title: string;
+  body: string;
+  className?: string;
+}) {
+  const [hovering, setHovering] = useState(false);
+
+  return (
+    <div
+      className={cn(
+        "clay group relative overflow-hidden rounded-[1.35rem] p-3 transition-shadow hover:shadow-xl",
+        className,
+      )}
+    >
+      <Lens hovering={hovering} setHovering={setHovering} lensSize={140}>
+        <img
+          src={src}
+          alt={alt}
+          width={1200}
+          height={900}
+          loading="lazy"
+          decoding="async"
+          className="aspect-4/3 w-full rounded-xl object-cover"
+        />
+      </Lens>
+      <div className="px-3 pb-2 pt-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="font-display text-lg font-semibold">{title}</h3>
+          <span
+            className={cn(
+              "rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary transition-opacity duration-300",
+              hovering ? "opacity-0" : "opacity-100",
+            )}
+          >
+            Hover to zoom
+          </span>
+        </div>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{body}</p>
+      </div>
+    </div>
+  );
+}
+
+const FALLBACK_ACCENTS = ["by hand", "for keeps", "that converts"];
 
 export default function Landing() {
   const { t, brandName } = useContent();
+  const { heroLead, heroMode, heroAccent, heroAccentWords, siteUrl, socialLinks } = useSettings();
+
+  const socials = useMemo(
+    () => Object.values(socialLinks).filter((link) => link?.trim()),
+    [socialLinks],
+  );
 
   useSeo({
     title: t("seo.home.title"),
@@ -24,163 +150,319 @@ export default function Landing() {
     jsonLd: {
       "@context": "https://schema.org",
       "@graph": [
-        getOrganizationSchema(brandName, { siteUrl: undefined }),
-        getWebSiteSchema(brandName, { siteUrl: undefined }),
+        getOrganizationSchema(brandName, { siteUrl, socials }),
+        getWebSiteSchema(brandName, { siteUrl }),
         {
           "@type": "WebApplication",
           "name": `${brandName} Studio`,
           "applicationCategory": "BusinessApplication",
           "operatingSystem": "Web",
           "description": "Digital design & management studio with AI assistant and live manager chat.",
-          "screenshot": absolute(resolveSiteUrl(undefined), "/screenshot.jpg")
-        }
-      ]
+          screenshot: absolute(resolveSiteUrl(siteUrl), "/screenshot.jpg"),
+        },
+      ],
     },
   });
 
-  const mounted = useRef(false);
-  const [visible, setVisible] = useState(false);
+  const services = useQuery(api.catalog.listPublic);
+  const work = useQuery(api.portfolio.list);
+
+  const [accentIndex, setAccentIndex] = useState(0);
+  const [broken, setBroken] = useState<Set<string>>(new Set());
+
+  const accentWords =
+    heroAccentWords.length > 0
+      ? heroAccentWords
+      : [`with ${brandName}`, ...FALLBACK_ACCENTS];
 
   useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
-      const t = setTimeout(() => setVisible(true), 80);
-      return () => clearTimeout(t);
-    }
-    return undefined;
-  }, []);
+    if (heroMode !== "rotating" || accentWords.length < 2) return;
+    const id = setInterval(() => {
+      setAccentIndex((i) => (i + 1) % accentWords.length);
+    }, 2600);
+    return () => clearInterval(id);
+  }, [heroMode, accentWords.length]);
+
+  const showcaseServices = useMemo(() => (services ?? []).slice(0, 4), [services]);
+
+  const chips = [
+    t("home.chip.1"),
+    t("home.chip.2"),
+    t("home.chip.3"),
+    t("home.chip.4"),
+    t("home.chip.5"),
+  ];
 
   return (
-    <main className="relative flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-12 text-center sm:px-6">
-      {/* Nav pill: leaf / grid / profile */}
-      <nav
-        className="mb-12 flex w-fit items-center justify-center gap-2 rounded-full border border-border/40 bg-transparent/80 px-2 py-1.5 backdrop-blur-sm"
-        aria-label="Primary navigation"
-      >
-        <button
-          type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground transition-ring hover:scale-105"
-          aria-label="Studio"
-        >
-          <Leaf className="size-4" />
-        </button>
-        <button
-          type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-ring hover:text-foreground"
-          aria-label="Sections"
-        >
-          <Grid3X3 className="size-4" />
-        </button>
-        <button
-          type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-ring hover:text-foreground"
-          aria-label="Account"
-          onClick={() => (window.location.href = "/auth")}
-        >
-          <User className="size-4" />
-        </button>
-      </nav>
+    <main className="relative min-h-dvh overflow-hidden">
+      <AuroraBackground />
 
-      {/* Brand name */}
-      <motion.h1
-        initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
-        animate={visible ? { opacity: 1, y: 0, filter: "blur(0)" } : {}}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="font-display text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl"
-      >
-        {brandName}
-      </motion.h1>
+      <section className="relative z-10 mx-auto flex w-full max-w-6xl flex-col items-center px-4 pb-16 pt-32 text-center sm:px-6 sm:pt-40">
+        <motion.span
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="clay-sm inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium text-muted-foreground"
+        >
+          <Sparkles className="size-3.5 text-primary" />
+          {t("brand.heroBadge")}
+        </motion.span>
 
-      {/* Tagline pill */}
-      <motion.div
-        initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
-        animate={visible ? { opacity: 1, y: 0, filter: "blur(0)" } : {}}
-        transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
-        className="mt-3 flex w-fit items-center gap-1.5 rounded-full border border-border/60 bg-background/70 px-3.5 py-1.5 backdrop-blur-sm"
-      >
-        <Sparkles className="size-3.5 text-primary" />
-        <span className="text-sm font-medium text-muted-foreground">
-          {t("brand.tagline")}
-        </span>
-      </motion.div>
-
-      {/* Hero headline */}
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={visible ? { opacity: 1, y: 0 } : {}}
-        transition={{ duration: 0.5, delay: 0.18, ease: "easeOut" }}
-        className="mt-8 max-w-lg"
-      >          <h2 className="font-display text-3xl font-semibold leading-tight text-foreground sm:text-4xl">
-          Elevate your
-          <br />
-          <span className="eden-gradient-word">
-            with Eden
+        <motion.h1
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className="font-display mt-6 max-w-3xl text-balance text-4xl font-semibold leading-[1.08] tracking-tight sm:text-6xl"
+        >
+          {heroLead}{" "}
+          <span className="relative inline-block">
+            {heroMode === "rotating" ? (
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={accentIndex}
+                  initial={{ opacity: 0, y: 14, rotateX: -10 }}
+                  animate={{ opacity: 1, y: 0, rotateX: 0 }}
+                  exit={{ opacity: 0, y: -14, rotateX: 10 }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                  className="inline-block italic"
+                >
+                  <ShimmerText>{accentWords[accentIndex]}</ShimmerText>
+                </motion.span>
+              </AnimatePresence>
+            ) : (
+              <span className="inline-block italic">
+                <ShimmerText>{heroAccent}</ShimmerText>
+              </span>
+            )}
           </span>
-        </h2>
+        </motion.h1>
 
-      </motion.div>
-
-      {/* CTA row */}
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={visible ? { opacity: 1, y: 0 } : {}}
-        transition={{ duration: 0.5, delay: 0.26, ease: "easeOut" }}
-        className="mt-8 flex flex-wrap items-center justify-center gap-3"
-      >
-        <Link
-          to="/services"
-          className="inline-flex h-10 w-full max-w-[200px] items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground shadow transition hover:brightness-110 hover:shadow-lg hover:shadow-primary/20"
+        <motion.p
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.16 }}
+          className="mt-5 max-w-xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg"
         >
-          {t("home.hero.ctaServices")}
-        </Link>
-        <Link
-          to="/services"
-          className="inline-flex h-10 w-full max-w-[200px] items-center justify-center rounded-full border border-border/60 bg-transparent px-5 text-sm font-semibold text-foreground transition hover:bg-muted"
-        >
-          {t("home.hero.ctaWork")}
-        </Link>
-      </motion.div>
+          {t("home.heroSubtitle")}
+        </motion.p>
 
-      {/* Secondary CTA */}
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={visible ? { opacity: 1, y: 0 } : {}}
-        transition={{ duration: 0.5, delay: 0.34, ease: "easeOut" }}
-        className="mt-3"
-      >
-        <Link
-          to="/products"
-          className="inline-flex h-9 w-full max-w-[220px] items-center justify-center rounded-full border border-border/60 px-5 text-sm font-semibold text-foreground transition hover:bg-muted"
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.24 }}
+          className="mt-8 flex flex-wrap items-center justify-center gap-3"
         >
-          {t("home.hero.ctaProducts")}
-        </Link>
-      </motion.div>
-
-      {/* Bottom chip row */}
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={visible ? { opacity: 1, y: 0 } : {}}
-        transition={{ duration: 0.5, delay: 0.42, ease: "easeOut" }}
-        className="mt-12 flex w-full max-w-sm flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-2xl border border-border/40 bg-background/40 px-4 py-3 backdrop-blur-sm"
-      >
-        {[t("home.chip.1"), t("home.chip.2")].map((chip) => (
-          <span
-            key={chip}
-            className="rounded-full bg-muted/60 px-3 py-1 text-xs font-medium text-muted-foreground"
+          <Magnetic>
+            <Link
+              to="/services"
+              className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-md transition hover:brightness-110 hover:shadow-lg hover:shadow-primary/20"
+            >
+              {t("home.hero.ctaServices")}
+            </Link>
+          </Magnetic>
+          <a
+            href="#portfolio"
+            className="clay-sm rounded-full px-6 py-3 text-sm font-semibold transition hover:text-primary hover:shadow-md"
           >
-            {chip}
-          </span>
-        ))}
-        <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-          {t("home.chip.3")}
-        </span>
-        <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-          {t("home.chip.4")}
-        </span>
-        <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-          {t("home.chip.5")}
-        </span>
-      </motion.div>
+            {t("home.hero.ctaWork")}
+          </a>
+          <Link
+            to="/products"
+            className="clay-sm rounded-full px-6 py-3 text-sm font-semibold transition hover:text-primary hover:shadow-md"
+          >
+            {t("home.hero.ctaProducts")}
+          </Link>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="mt-10 flex flex-wrap justify-center gap-2.5"
+        >
+          {chips.map((chip) => (
+            <motion.span
+              key={chip}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.55 }}
+              className="clay-sm rounded-full px-3.5 py-1.5 text-xs text-muted-foreground"
+            >
+              {chip}
+            </motion.span>
+          ))}
+        </motion.div>
+
+        <div className="mt-12 grid w-full max-w-xl grid-cols-3 gap-3">
+          {[
+            { key: "home.stat.1", value: services?.length ?? 0 },
+            { key: "home.stat.2", value: work?.length ?? 0 },
+            { key: "home.stat.3", value: 3 },
+          ].map((stat, i) => (
+            <motion.div
+              key={stat.key}
+              initial={{ opacity: 0, y: 16, rotateX: 12 }}
+              animate={{ opacity: 1, y: 0, rotateX: 0 }}
+              transition={{ delay: 0.6 + i * 0.08, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="clay-sm rounded-2xl px-3 py-4 text-center"
+              style={{ transformPerspective: 700 }}
+            >
+              <p className="font-display text-2xl font-semibold tabular-nums text-primary sm:text-3xl">
+                <CountUp to={stat.value} />
+              </p>
+              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{t(stat.key)}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      <section className="relative z-10 border-y border-border/50 bg-card/30 py-5">
+        <Marquee seconds={46}>
+          {(services ?? []).map((service) => (
+            <span key={service._id} className="flex items-center gap-3">
+              <span className="font-display text-sm font-semibold">{service.name}</span>
+              <span className="text-xs text-muted-foreground">
+                {t("services.from")} {inr(Math.min(...service.tiers.map((tier) => tier.basePrice)))}
+              </span>
+              <span aria-hidden className="text-primary/40">
+                ✦
+              </span>
+            </span>
+          ))}
+        </Marquee>
+      </section>
+
+      <section id="portfolio" className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
+        <div className="mb-8 flex items-end justify-between gap-4">
+          <Reveal>
+            <h2 className="font-display text-2xl font-semibold sm:text-3xl">{t("home.work.title")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t("home.work.subtitle")}</p>
+          </Reveal>
+        </div>
+
+        <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 [&>*]:mb-4">
+          {(work ?? []).map((item, i) => (
+            <div key={item._id} className="mb-4 break-inside-avoid">
+              <Portfolio3D
+                url={broken.has(item._id) ? undefined : item.url}
+                title={item.title}
+                onBroken={() => setBroken((prev) => new Set(prev).add(item._id))}
+                index={i}
+              />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="relative z-10 mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
+        <div className="mb-8 text-center">
+          <Reveal>
+            <h2 className="font-display text-2xl font-semibold sm:text-3xl">
+              {t("home.services.title")}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t("home.services.subtitle")}</p>
+          </Reveal>
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {showcaseServices.map((service, i) => {
+            const Icon = serviceIcon(service.slug);
+            const from = Math.min(...service.tiers.map((tier) => tier.basePrice));
+            return (
+              <motion.div
+                key={service._id}
+                initial={{ opacity: 0, y: 24, rotateX: 8 }}
+                whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+                viewport={{ once: true, margin: "-50px" }}
+                transition={{ delay: i * 0.06, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                style={{ perspective: "800px" }}
+              >
+                <TiltCard className="h-full rounded-[1.35rem]" intensity={7}>
+                  <Link
+                    to="/services"
+                    className="clay clay-press block h-full p-5 transition-shadow hover:shadow-xl"
+                  >
+                    <span className="tint flex size-11 items-center justify-center rounded-2xl shadow-inner">
+                      <Icon className="size-5" />
+                    </span>
+                    <h3 className="mt-4 font-semibold">{service.name}</h3>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      {service.tagline}
+                    </p>
+                    <p className="mt-3 text-sm font-semibold text-primary">
+                      {t("services.from")} {inr(from)}
+                    </p>
+                  </Link>
+                </TiltCard>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        <div className="mt-8 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <Link
+              to="/services"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+            >
+              {t("home.services.cta")} <ArrowRight className="size-4" />
+            </Link>
+          </motion.div>
+        </div>
+      </section>
+
+      <section id="motion-showcase" className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
+        <Reveal>
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="font-display text-xs font-medium uppercase tracking-[0.2em] text-primary">
+                {t("home.motionEyebrow")}
+              </p>
+              <h2 className="font-display mt-2 text-3xl font-semibold sm:text-4xl">
+                {t("home.motion.title")}
+              </h2>
+              <p className="mt-2 text-base leading-relaxed text-muted-foreground">
+                {t("home.motion.subtitle")}
+              </p>
+            </div>
+            <a
+              href="#portfolio"
+              className="clay-sm inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-semibold transition hover:text-primary hover:shadow-md"
+            >
+              See the work <ArrowRight className="size-4" />
+            </a>
+          </div>
+        </Reveal>
+
+        <div className="mt-10 grid gap-8 lg:grid-cols-2">
+          <div className="rounded-[1.35rem] bg-card/60 p-6 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-primary">
+              Words arrange themselves
+            </p>
+            <div className="mt-4">
+              <WordReveal
+                words={t("home.motion.statement")}
+                className="mt-4 font-display text-xl leading-snug text-neutral-800 sm:text-2xl"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-[1.35rem] bg-card/60 p-6 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-primary">
+              The detail is where craft lives
+            </p>
+            <LensFigure
+              src="https://images.unsplash.com/photo-1713869820987-519844949a8a?q=80&w=3500&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+              alt="A hand holding a sketch"
+              title={t("home.motionEyebrow")}
+              body={t("home.motion.lensCaption")}
+            />
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

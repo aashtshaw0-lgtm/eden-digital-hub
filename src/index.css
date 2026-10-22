@@ -410,31 +410,6 @@ html {
   animation: eden-shimmer 6s linear infinite;
 }
 
-.eden-gradient-word {
-  position: relative;
-  display: inline-block;
-}
-
-.eden-gradient-word::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  animation: eden-shimmer 2.6s linear infinite;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--primary) 40%,
-    var(--primary) 60%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  pointer-events: none;
-}
-
 .orbit-ring {
   border-radius: 9999px;
   padding: 3px;
