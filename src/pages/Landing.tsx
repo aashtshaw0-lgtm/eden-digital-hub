@@ -10,6 +10,7 @@ import {
   TiltCard,
 } from "@/components/eden/motion";
 import { serviceIcon } from "@/components/eden/serviceIcons";
+import { SiteLogo } from "@/components/eden/SiteLogo";
 import { api } from "@/convex/_generated/api";
 import { useContent } from "@/context/ContentProvider";
 import { useSettings } from "@/context/SettingsProvider";
@@ -197,7 +198,16 @@ export default function Landing() {
     <main className="relative min-h-dvh overflow-hidden">
       <AuroraBackground />
 
-      <section className="relative z-10 mx-auto flex w-full max-w-6xl flex-col items-center px-4 pb-16 pt-32 text-center sm:px-6 sm:pt-40">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.04 }}
+        className="relative z-10 flex justify-center px-4 pt-28 sm:pt-36"
+      >
+        <SiteLogo variant="light" size="lg" className="w-56 sm:w-72" />
+      </motion.div>
+
+      <section className="relative z-10 mx-auto flex w-full max-w-6xl flex-col items-center px-4 pb-16 pt-10 text-center sm:px-6 sm:pt-12">
         <motion.span
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
