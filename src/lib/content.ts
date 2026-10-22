@@ -160,34 +160,6 @@ const content = [
         label: "Stat 3 label",
         default: "Tiers per service",
       },
-      {
-        key: "home.motionEyebrow",
-        label: "Motion section eyebrow",
-        default: "The feel of it",
-      },
-      {
-        key: "home.motion.title",
-        label: "Motion section title",
-        default: "Made to move",
-      },
-      {
-        key: "home.motion.subtitle",
-        label: "Motion section subtitle",
-        type: "textarea",
-        default: "Words, cards and images behave the way the work does: precise, playful and never stock.",
-      },
-      {
-        key: "home.motion.statement",
-        label: "Motion statement (edit freely)",
-        type: "textarea",
-        default: "We draw the mark, set the type and check every edge by hand. Then we run the campaign that puts the piece in front of people. Templates and stock go in — work with your name on it comes out.",
-      },
-      {
-        key: "home.motion.lensCaption",
-        label: "Lens caption",
-        type: "textarea",
-        default: "Zoom into any piece. Craft is in the detail.",
-      },
     ],
   },
   {

@@ -1,6 +1,5 @@
 import { Portfolio3D } from "@/components/eden/Portfolio3D";
 import { Reveal } from "@/components/eden/Reveal";
-import { Lens } from "@/components/eden/LensCard";
 import {
   AuroraBackground,
   CountUp,
@@ -22,115 +21,11 @@ import {
   resolveSiteUrl,
   useSeo,
 } from "@/lib/seo";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { useQuery } from "convex/react";
-import { cn } from "@/lib/utils";
-
-/** Reveals a paragraph word by word as it scrolls into view. */
-function WordReveal({
-  words,
-  className,
-  duration = 0.5,
-  step = 0.08,
-}: {
-  words: string;
-  className?: string;
-  duration?: number;
-  step?: number;
-}) {
-  const reduced = useReducedMotion();
-
-  if (reduced) {
-    return (
-      <p className={cn("text-base leading-relaxed text-muted-foreground sm:text-lg", className)}>
-        {words}
-      </p>
-    );
-  }
-
-  const list = words.split(" ");
-
-  return (
-    <motion.div
-      className={cn("text-base leading-relaxed text-muted-foreground sm:text-lg", className)}
-      initial="hidden"
-      whileInView="shown"
-      viewport={{ once: true, margin: "-40px" }}
-      variants={{ hidden: {}, shown: {} }}
-    >
-      {list.map((word, i) => (
-        <motion.span
-          key={`${word}-${i}`}
-          variants={{
-            hidden: { opacity: 0, filter: "blur(10px)" },
-            shown: {
-              opacity: 1,
-              filter: "blur(0px)",
-              transition: { duration, delay: i * step },
-            },
-          }}
-        >
-          {word}{" "}
-        </motion.span>
-      ))}
-    </motion.div>
-  );
-}
-
-/** An image tile you can zoom into with a magnifying lens. */
-function LensFigure({
-  src,
-  alt,
-  title,
-  body,
-  className,
-}: {
-  src: string;
-  alt: string;
-  title: string;
-  body: string;
-  className?: string;
-}) {
-  const [hovering, setHovering] = useState(false);
-
-  return (
-    <div
-      className={cn(
-        "clay group relative overflow-hidden rounded-[1.35rem] p-3 transition-shadow hover:shadow-xl",
-        className,
-      )}
-    >
-      <Lens hovering={hovering} setHovering={setHovering} lensSize={140}>
-        <img
-          src={src}
-          alt={alt}
-          width={1200}
-          height={900}
-          loading="lazy"
-          decoding="async"
-          className="aspect-4/3 w-full rounded-xl object-cover"
-        />
-      </Lens>
-      <div className="px-3 pb-2 pt-4">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="font-display text-lg font-semibold">{title}</h3>
-          <span
-            className={cn(
-              "rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary transition-opacity duration-300",
-              hovering ? "opacity-0" : "opacity-100",
-            )}
-          >
-            Hover to zoom
-          </span>
-        </div>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{body}</p>
-      </div>
-    </div>
-  );
-}
 
 const FALLBACK_ACCENTS = ["by hand", "for keeps", "that converts"];
 
@@ -421,56 +316,6 @@ export default function Landing() {
               {t("home.services.cta")} <ArrowRight className="size-4" />
             </Link>
           </motion.div>
-        </div>
-      </section>
-
-      <section id="motion-showcase" className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
-        <Reveal>
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="font-display text-xs font-medium uppercase tracking-[0.2em] text-primary">
-                {t("home.motionEyebrow")}
-              </p>
-              <h2 className="font-display mt-2 text-3xl font-semibold sm:text-4xl">
-                {t("home.motion.title")}
-              </h2>
-              <p className="mt-2 text-base leading-relaxed text-muted-foreground">
-                {t("home.motion.subtitle")}
-              </p>
-            </div>
-            <a
-              href="#portfolio"
-              className="clay-sm inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-semibold transition hover:text-primary hover:shadow-md"
-            >
-              See the work <ArrowRight className="size-4" />
-            </a>
-          </div>
-        </Reveal>
-
-        <div className="mt-10 grid gap-8 lg:grid-cols-2">
-          <div className="rounded-[1.35rem] bg-card/60 p-6 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-primary">
-              Words arrange themselves
-            </p>
-            <div className="mt-4">
-              <WordReveal
-                words={t("home.motion.statement")}
-                className="mt-4 font-display text-xl leading-snug text-neutral-800 sm:text-2xl"
-              />
-            </div>
-          </div>
-
-          <div className="rounded-[1.35rem] bg-card/60 p-6 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-primary">
-              The detail is where craft lives
-            </p>
-            <LensFigure
-              src="https://images.unsplash.com/photo-1713869820987-519844949a8a?q=80&w=3500&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
-              alt="A hand holding a sketch"
-              title={t("home.motionEyebrow")}
-              body={t("home.motion.lensCaption")}
-            />
-          </div>
         </div>
       </section>
     </main>
