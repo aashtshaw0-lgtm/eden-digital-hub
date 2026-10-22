@@ -5,9 +5,13 @@ const content = [
     description: "Brand colours, logo and every link you change here are woven into the site, the console and the email.",
     fields: [
       {
+        // Deliberately blank: the studio's name comes from the Brand kit
+        // (`settings.brandWord`), which is also what the logo wordmark shows.
+        // A value typed here overrides that one place — it never ships a name
+        // the studio has not chosen.
         key: "brand.name",
-        label: "Brand name",
-        default: "Eden",
+        label: "Brand name override (blank = the Brand kit word)",
+        default: "",
       },
       {
         key: "brand.tagline",
@@ -553,7 +557,23 @@ function contentDefault(key: string): string {
   return text ?? "";
 }
 
-export { fillTokens, contentDefault };
+/**
+ * The studio's name, from one place.
+ *
+ * The Brand kit's word (`settings.brandWord`) is the name the studio chose, so
+ * it is the name on the site — tab title, footer, chat, legal copy, structured
+ * data. `brand.name` in this deck is only an override for studios that want a
+ * different name in running text than in the wordmark; when it is blank (the
+ * shipped default) the kit word wins. Without either, no name is invented.
+ */
+function resolveBrandName(
+  override?: string | null,
+  brandWord?: string | null,
+): string {
+  return override?.trim() || brandWord?.trim() || "The studio";
+}
+
+export { fillTokens, contentDefault, resolveBrandName };
 
 export interface EdenContent {
   overrides: Record<string, string>;

@@ -1,5 +1,6 @@
 import { api } from "@/convex/_generated/api";
-import { fillTokens, contentDefault } from "@/lib/content";
+import { fillTokens, contentDefault, resolveBrandName } from "@/lib/content";
+import { useSettings } from "@/context/SettingsProvider";
 import { useQuery } from "convex/react";
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 
@@ -29,13 +30,17 @@ const FALLBACK: EdenContent = {
     return tokens ? fillTokens(text, tokens) : text;
   },
   isCustom: () => false,
-  brandName: contentDefault("brand.name"),
+  brandName: resolveBrandName(),
 };
 
 const ContentContext = createContext<EdenContent>(FALLBACK);
 
 export function ContentProvider({ children }: { children: ReactNode }) {
   const overrides = useQuery(api.content.list);
+  // The name the studio actually chose lives in the Brand kit. Reading it here
+  // keeps one name across the wordmark, the tab title and every sentence that
+  // mentions the studio, instead of a placeholder surviving in half of them.
+  const { brandWord } = useSettings();
 
   const map = overrides ?? {};
 
@@ -50,14 +55,16 @@ export function ContentProvider({ children }: { children: ReactNode }) {
 
   const isCustom = useCallback((key: string) => Boolean(map[key]?.trim()), [map]);
 
+  const brandName = resolveBrandName(map["brand.name"], brandWord);
+
   const value = useMemo<EdenContent>(
     () => ({
       overrides: map,
       t,
       isCustom,
-      brandName: t("brand.name") || "The studio",
+      brandName,
     }),
-    [map, t, isCustom],
+    [map, t, isCustom, brandName],
   );
 
   return <ContentContext.Provider value={value}>{children}</ContentContext.Provider>;

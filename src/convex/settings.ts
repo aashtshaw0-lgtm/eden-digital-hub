@@ -27,13 +27,15 @@ export const get = query({
     const qrImageUrl = row?.qrStorageId
       ? ((await ctx.storage.getUrl(row.qrStorageId)) ?? undefined)
       : undefined;
-    // The studio name lives in the copy deck, so the hero's fallback accent
-    // words follow it: rename the company and the headline follows.
+    // The hero's fallback accent words follow the studio's name: the copy-deck
+    // override when one is set, otherwise the Brand kit word — the same order
+    // the client uses — so a fresh row never invents a name of its own.
     const brandRow = await ctx.db
       .query("siteContent")
       .withIndex("by_key", (q) => q.eq("key", "brand.name"))
       .first();
-    const brandName = brandRow?.value?.trim() || "the studio";
+    const brandName =
+      brandRow?.value?.trim() || row?.brandWord?.trim() || "the studio";
     return {
       primaryColor: row?.primaryColor ?? DEFAULTS.primaryColor,
       backgroundColor: row?.backgroundColor ?? DEFAULTS.backgroundColor,

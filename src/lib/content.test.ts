@@ -1,7 +1,13 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CONTENT_DEFAULTS, CONTENT_FIELDS, contentDefault, fillTokens } from "./content";
+import {
+  CONTENT_DEFAULTS,
+  CONTENT_FIELDS,
+  contentDefault,
+  fillTokens,
+  resolveBrandName,
+} from "./content";
 
 const SRC = join(process.cwd(), "src");
 
@@ -55,6 +61,27 @@ describe("content deck", () => {
 
   it("returns empty text for an unknown key rather than inventing copy", () => {
     expect(contentDefault("home.section.that.was.removed")).toBe("");
+  });
+
+  it("ships no hardcoded studio name", () => {
+    expect(CONTENT_DEFAULTS["brand.name"]).toBe("");
+  });
+});
+
+describe("resolveBrandName", () => {
+  it("uses the Brand kit word the studio chose", () => {
+    expect(resolveBrandName("", "abhisto")).toBe("abhisto");
+    expect(resolveBrandName(undefined, "  abhisto  ")).toBe("abhisto");
+  });
+
+  it("lets an explicit copy-deck override win over the kit word", () => {
+    expect(resolveBrandName("Abhisto Studio", "abhisto")).toBe("Abhisto Studio");
+    expect(resolveBrandName("  ", "abhisto")).toBe("abhisto");
+  });
+
+  it("falls back to neutral wording, never to a placeholder brand", () => {
+    expect(resolveBrandName(undefined, undefined)).toBe("The studio");
+    expect(resolveBrandName("", "")).toBe("The studio");
   });
 });
 
